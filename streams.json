@@ -44,11 +44,6 @@
     "source": "charlie",
     "m3u8_url": ""
   },
-  "1743015600000-belfast-fife-1743015600000-belfast-fife": {
-    "matchId": "1743015600000-belfast-fife",
-    "source": "bravo",
-    "m3u8_url": ""
-  },
   "1743015600000-hk-nitra-vkp-bratislava-1743015600000-hk-nitra-vkp-bratislava": {
     "matchId": "1743015600000-hk-nitra-vkp-bratislava",
     "source": "bravo",
@@ -56,6 +51,11 @@
   },
   "1743015600000-herrsching-giesen-1743015600000-herrsching-giesen": {
     "matchId": "1743015600000-herrsching-giesen",
+    "source": "bravo",
+    "m3u8_url": ""
+  },
+  "1743015600000-belfast-fife-1743015600000-belfast-fife": {
+    "matchId": "1743015600000-belfast-fife",
     "source": "bravo",
     "m3u8_url": ""
   },
@@ -74,11 +74,6 @@
     "source": "bravo",
     "m3u8_url": ""
   },
-  "1743015600000-kolegium-zuzlowe-debata-1743015600000-kolegium-zuzlowe-debata": {
-    "matchId": "1743015600000-kolegium-zuzlowe-debata",
-    "source": "bravo",
-    "m3u8_url": ""
-  },
   "1743015600000-princeton-vs-rutgers-1743015600000-princeton-vs-rutgers": {
     "matchId": "1743015600000-princeton-vs-rutgers",
     "source": "bravo",
@@ -86,6 +81,11 @@
   },
   "1743015600000-air-force-vs-dayton-1743015600000-air-force-vs-dayton": {
     "matchId": "1743015600000-air-force-vs-dayton",
+    "source": "bravo",
+    "m3u8_url": ""
+  },
+  "1743015600000-kolegium-zuzlowe-debata-1743015600000-kolegium-zuzlowe-debata": {
+    "matchId": "1743015600000-kolegium-zuzlowe-debata",
     "source": "bravo",
     "m3u8_url": ""
   },
@@ -169,16 +169,6 @@
     "source": "bravo",
     "m3u8_url": ""
   },
-  "1743012000000-vimmerby-tingsryd-1743012000000-vimmerby-tingsryd": {
-    "matchId": "1743012000000-vimmerby-tingsryd",
-    "source": "bravo",
-    "m3u8_url": ""
-  },
-  "1743012000000-fischtown-pinguins-kolner-haie-1743012000000-fischtown-pinguins-kolner-haie": {
-    "matchId": "1743012000000-fischtown-pinguins-kolner-haie",
-    "source": "bravo",
-    "m3u8_url": ""
-  },
   "1743012000000-lunds-habo-1743012000000-lunds-habo": {
     "matchId": "1743012000000-lunds-habo",
     "source": "bravo",
@@ -189,14 +179,19 @@
     "source": "bravo",
     "m3u8_url": ""
   },
-  "1743012000000-gremio-u20-atletico-mg-u20-1743012000000-gremio-u20-atletico-mg-u20": {
-    "matchId": "1743012000000-gremio-u20-atletico-mg-u20",
+  "1743012000000-vimmerby-tingsryd-1743012000000-vimmerby-tingsryd": {
+    "matchId": "1743012000000-vimmerby-tingsryd",
     "source": "bravo",
     "m3u8_url": ""
   },
-  "heerenveen-w-vs-az-alkmaar-w-heerenveen-w-vs-az-alkmaar-w": {
-    "matchId": "heerenveen-w-vs-az-alkmaar-w",
-    "source": "alpha",
+  "1743012000000-fischtown-pinguins-kolner-haie-1743012000000-fischtown-pinguins-kolner-haie": {
+    "matchId": "1743012000000-fischtown-pinguins-kolner-haie",
+    "source": "bravo",
+    "m3u8_url": ""
+  },
+  "1743012000000-gremio-u20-atletico-mg-u20-1743012000000-gremio-u20-atletico-mg-u20": {
+    "matchId": "1743012000000-gremio-u20-atletico-mg-u20",
+    "source": "bravo",
     "m3u8_url": ""
   },
   "vaxjo-vs-lulea-vaxjo-vs-lulea": {
@@ -219,6 +214,11 @@
     "source": "bravo",
     "m3u8_url": ""
   },
+  "heerenveen-w-vs-az-alkmaar-w-heerenveen-w-vs-az-alkmaar-w": {
+    "matchId": "heerenveen-w-vs-az-alkmaar-w",
+    "source": "alpha",
+    "m3u8_url": ""
+  },
   "ik-oskarshamn-vs-bik-karlskoga-2243236-1743012000000-oskarshamn-bik-karlskoga": {
     "matchId": "ik-oskarshamn-vs-bik-karlskoga-2243236",
     "source": "bravo",
@@ -239,13 +239,13 @@
     "source": "foxtrot",
     "m3u8_url": ""
   },
-  "olympique-lyonnais-w-vs-bayern-munchen-w-olympique-lyonnais-w-vs-bayern-munchen-w": {
-    "matchId": "olympique-lyonnais-w-vs-bayern-munchen-w",
+  "din-bucuresti-vs-sc-magdeburg-din-bucuresti-vs-sc-magdeburg": {
+    "matchId": "din-bucuresti-vs-sc-magdeburg",
     "source": "alpha",
     "m3u8_url": ""
   },
-  "din-bucuresti-vs-sc-magdeburg-din-bucuresti-vs-sc-magdeburg": {
-    "matchId": "din-bucuresti-vs-sc-magdeburg",
+  "olympique-lyonnais-w-vs-bayern-munchen-w-olympique-lyonnais-w-vs-bayern-munchen-w": {
+    "matchId": "olympique-lyonnais-w-vs-bayern-munchen-w",
     "source": "alpha",
     "m3u8_url": ""
   },
@@ -272,11 +272,6 @@
   "promitheas-vs-aek-athens-1743010200000-promitheas-aek-athens": {
     "matchId": "promitheas-vs-aek-athens",
     "source": "bravo",
-    "m3u8_url": ""
-  },
-  "wta-miami-alexandra-eala-vs-iga-swiatek-wta-miami-alexandra-eala-vs-iga-swiatek": {
-    "matchId": "wta-miami-alexandra-eala-vs-iga-swiatek",
-    "source": "alpha",
     "m3u8_url": ""
   },
   "1743008400000-odolena-voda-karlovarsko-1743008400000-odolena-voda-karlovarsko": {
@@ -359,11 +354,6 @@
     "source": "bravo",
     "m3u8_url": ""
   },
-  "liverpool-vs-nacional-liverpool-vs-nacional": {
-    "matchId": "liverpool-vs-nacional",
-    "source": "alpha",
-    "m3u8_url": ""
-  },
   "milano-vs-lube-civitanova-milano-vs-lube-civitanova": {
     "matchId": "milano-vs-lube-civitanova",
     "source": "alpha",
@@ -374,8 +364,18 @@
     "source": "alpha",
     "m3u8_url": ""
   },
+  "liverpool-vs-nacional-liverpool-vs-nacional": {
+    "matchId": "liverpool-vs-nacional",
+    "source": "alpha",
+    "m3u8_url": ""
+  },
   "kielce-vs-fuchse-berlin-kielce-vs-fuchse-berlin": {
     "matchId": "kielce-vs-fuchse-berlin",
+    "source": "alpha",
+    "m3u8_url": ""
+  },
+  "atp-miami-evan-king-christian-harrison-vs-michael-venus-nikola-mektic-atp-miami-evan-king-christian-harrison-vs-michael-venus-nikola-mektic": {
+    "matchId": "atp-miami-evan-king-christian-harrison-vs-michael-venus-nikola-mektic",
     "source": "alpha",
     "m3u8_url": ""
   },
@@ -396,11 +396,6 @@
   },
   "san-martin-san-juan-vs-gimnasia-y-esgrima-jujuy-san-martin-san-juan-vs-gimnasia-y-esgrima-jujuy": {
     "matchId": "san-martin-san-juan-vs-gimnasia-y-esgrima-jujuy",
-    "source": "alpha",
-    "m3u8_url": ""
-  },
-  "atp-miami-evan-king-christian-harrison-vs-michael-venus-nikola-mektic-atp-miami-evan-king-christian-harrison-vs-michael-venus-nikola-mektic": {
-    "matchId": "atp-miami-evan-king-christian-harrison-vs-michael-venus-nikola-mektic",
     "source": "alpha",
     "m3u8_url": ""
   },
@@ -604,13 +599,13 @@
     "source": "charlie",
     "m3u8_url": ""
   },
-  "aew-dynamite-aew-dynamite": {
-    "matchId": "aew-dynamite",
+  "pwhl-minnesota-frost-w-vs-montreal-victoire-w-pwhl-minnesota-frost-w-vs-montreal-victoire-w": {
+    "matchId": "pwhl-minnesota-frost-w-vs-montreal-victoire-w",
     "source": "alpha",
     "m3u8_url": ""
   },
-  "pwhl-minnesota-frost-w-vs-montreal-victoire-w-pwhl-minnesota-frost-w-vs-montreal-victoire-w": {
-    "matchId": "pwhl-minnesota-frost-w-vs-montreal-victoire-w",
+  "aew-dynamite-aew-dynamite": {
+    "matchId": "aew-dynamite",
     "source": "alpha",
     "m3u8_url": ""
   },
@@ -719,13 +714,13 @@
     "source": "alpha",
     "m3u8_url": ""
   },
-  "sydney-swans-vs-fremantle-1629432950-sydney-swans-vs-fremantle-1629432950": {
-    "matchId": "sydney-swans-vs-fremantle-1629432950",
+  "ecs-malta-2024-or-day-20-or-10-nov-2024-or-1629432949-ecs-malta-2024-or-day-20-or-10-nov-2024-or-1629432949": {
+    "matchId": "ecs-malta-2024-or-day-20-or-10-nov-2024-or-1629432949",
     "source": "charlie",
     "m3u8_url": ""
   },
-  "ecs-malta-2024-or-day-20-or-10-nov-2024-or-1629432949-ecs-malta-2024-or-day-20-or-10-nov-2024-or-1629432949": {
-    "matchId": "ecs-malta-2024-or-day-20-or-10-nov-2024-or-1629432949",
+  "sydney-swans-vs-fremantle-1629432950-sydney-swans-vs-fremantle-1629432950": {
+    "matchId": "sydney-swans-vs-fremantle-1629432950",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -789,13 +784,13 @@
     "source": "charlie",
     "m3u8_url": ""
   },
-  "texas-childrens-houston-open-featured-groups-first-round-featured-groups-1629432954-texas-childrens-houston-open-featured-groups-first-round-featured-groups-1629432954": {
-    "matchId": "texas-childrens-houston-open-featured-groups-first-round-featured-groups-1629432954",
+  "srh-vs-lsg-1629432956-srh-vs-lsg-1629432956": {
+    "matchId": "srh-vs-lsg-1629432956",
     "source": "charlie",
     "m3u8_url": ""
   },
-  "srh-vs-lsg-1629432956-srh-vs-lsg-1629432956": {
-    "matchId": "srh-vs-lsg-1629432956",
+  "texas-childrens-houston-open-featured-groups-first-round-featured-groups-1629432954-texas-childrens-houston-open-featured-groups-first-round-featured-groups-1629432954": {
+    "matchId": "texas-childrens-houston-open-featured-groups-first-round-featured-groups-1629432954",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -829,13 +824,13 @@
     "source": "foxtrot",
     "m3u8_url": ""
   },
-  "miami-doubles-sf-2-1629432958-miami-doubles-sf-2-1629432958": {
-    "matchId": "miami-doubles-sf-2-1629432958",
+  "ldlc-asvel-villeurbanne-vs-zalgiris-kaunas-1629432961-ldlc-asvel-villeurbanne-vs-zalgiris-kaunas-1629432961": {
+    "matchId": "ldlc-asvel-villeurbanne-vs-zalgiris-kaunas-1629432961",
     "source": "charlie",
     "m3u8_url": ""
   },
-  "ldlc-asvel-villeurbanne-vs-zalgiris-kaunas-1629432961-ldlc-asvel-villeurbanne-vs-zalgiris-kaunas-1629432961": {
-    "matchId": "ldlc-asvel-villeurbanne-vs-zalgiris-kaunas-1629432961",
+  "miami-doubles-sf-2-1629432958-miami-doubles-sf-2-1629432958": {
+    "matchId": "miami-doubles-sf-2-1629432958",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -964,11 +959,6 @@
     "source": "echo",
     "m3u8_url": ""
   },
-  "miami-qf-4-1629432979-miami-qf-4-1629432979": {
-    "matchId": "miami-qf-4-1629432979",
-    "source": "charlie",
-    "m3u8_url": ""
-  },
   "ford-championship-first-round-1629432989-ford-championship-first-round-1629432989": {
     "matchId": "ford-championship-first-round-1629432989",
     "source": "charlie",
@@ -976,6 +966,11 @@
   },
   "indiana-mad-ants-vs-grand-rapids-gold-1629432988-indiana-mad-ants-vs-grand-rapids-gold-1629432988": {
     "matchId": "indiana-mad-ants-vs-grand-rapids-gold-1629432988",
+    "source": "charlie",
+    "m3u8_url": ""
+  },
+  "miami-qf-4-1629432979-miami-qf-4-1629432979": {
+    "matchId": "miami-qf-4-1629432979",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -1099,16 +1094,6 @@
     "source": "charlie",
     "m3u8_url": ""
   },
-  "athletics-vs-seattle-mariners-1629433006-athletics-vs-seattle-mariners-1629433006": {
-    "matchId": "athletics-vs-seattle-mariners-1629433006",
-    "source": "charlie",
-    "m3u8_url": ""
-  },
-  "chicago-cubs-vs-arizona-diamondbacks-1629433005-chicago-cubs-vs-arizona-diamondbacks-1629433005": {
-    "matchId": "chicago-cubs-vs-arizona-diamondbacks-1629433005",
-    "source": "charlie",
-    "m3u8_url": ""
-  },
   "portland-trail-blazers-vs-sacramento-kings-1629433002-portland-trail-blazers-vs-sacramento-kings-1629433002": {
     "matchId": "portland-trail-blazers-vs-sacramento-kings-1629433002",
     "source": "charlie",
@@ -1116,6 +1101,16 @@
   },
   "texas-legends-vs-valley-suns-1629433001-texas-legends-vs-valley-suns-1629433001": {
     "matchId": "texas-legends-vs-valley-suns-1629433001",
+    "source": "charlie",
+    "m3u8_url": ""
+  },
+  "athletics-vs-seattle-mariners-1629433006-athletics-vs-seattle-mariners-1629433006": {
+    "matchId": "athletics-vs-seattle-mariners-1629433006",
+    "source": "charlie",
+    "m3u8_url": ""
+  },
+  "chicago-cubs-vs-arizona-diamondbacks-1629433005-chicago-cubs-vs-arizona-diamondbacks-1629433005": {
+    "matchId": "chicago-cubs-vs-arizona-diamondbacks-1629433005",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -1189,13 +1184,13 @@
     "source": "charlie",
     "m3u8_url": ""
   },
-  "texas-childrens-houston-open-featured-groups-second-round-featured-groups-1629433015-texas-childrens-houston-open-featured-groups-second-round-featured-groups-1629433015": {
-    "matchId": "texas-childrens-houston-open-featured-groups-second-round-featured-groups-1629433015",
+  "csk-vs-rcb-1629433017-csk-vs-rcb-1629433017": {
+    "matchId": "csk-vs-rcb-1629433017",
     "source": "charlie",
     "m3u8_url": ""
   },
-  "csk-vs-rcb-1629433017-csk-vs-rcb-1629433017": {
-    "matchId": "csk-vs-rcb-1629433017",
+  "texas-childrens-houston-open-featured-groups-second-round-featured-groups-1629433015-texas-childrens-houston-open-featured-groups-second-round-featured-groups-1629433015": {
+    "matchId": "texas-childrens-houston-open-featured-groups-second-round-featured-groups-1629433015",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -1359,11 +1354,6 @@
     "source": "charlie",
     "m3u8_url": ""
   },
-  "boys-and-girls-club-of-the-blue-ridge-200-1629433101-boys-and-girls-club-of-the-blue-ridge-200-1629433101": {
-    "matchId": "boys-and-girls-club-of-the-blue-ridge-200-1629433101",
-    "source": "charlie",
-    "m3u8_url": ""
-  },
   "los-angeles-clippers-vs-brooklyn-nets-1629433099-los-angeles-clippers-vs-brooklyn-nets-1629433099": {
     "matchId": "los-angeles-clippers-vs-brooklyn-nets-1629433099",
     "source": "charlie",
@@ -1371,6 +1361,11 @@
   },
   "charlotte-hornets-vs-toronto-raptors-1629433100-charlotte-hornets-vs-toronto-raptors-1629433100": {
     "matchId": "charlotte-hornets-vs-toronto-raptors-1629433100",
+    "source": "charlie",
+    "m3u8_url": ""
+  },
+  "boys-and-girls-club-of-the-blue-ridge-200-1629433101-boys-and-girls-club-of-the-blue-ridge-200-1629433101": {
+    "matchId": "boys-and-girls-club-of-the-blue-ridge-200-1629433101",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -1534,13 +1529,13 @@
     "source": "charlie",
     "m3u8_url": ""
   },
-  "reds-vs-force-1629433121-reds-vs-force-1629433121": {
-    "matchId": "reds-vs-force-1629433121",
+  "hero-indian-open-third-round-1629433120-hero-indian-open-third-round-1629433120": {
+    "matchId": "hero-indian-open-third-round-1629433120",
     "source": "charlie",
     "m3u8_url": ""
   },
-  "hero-indian-open-third-round-1629433120-hero-indian-open-third-round-1629433120": {
-    "matchId": "hero-indian-open-third-round-1629433120",
+  "reds-vs-force-1629433121-reds-vs-force-1629433121": {
+    "matchId": "reds-vs-force-1629433121",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -1624,13 +1619,13 @@
     "source": "charlie",
     "m3u8_url": ""
   },
-  "france-vs-scotland-1629433126-france-vs-scotland-1629433126": {
-    "matchId": "france-vs-scotland-1629433126",
+  "gt-vs-mi-1629433125-gt-vs-mi-1629433125": {
+    "matchId": "gt-vs-mi-1629433125",
     "source": "charlie",
     "m3u8_url": ""
   },
-  "gt-vs-mi-1629433125-gt-vs-mi-1629433125": {
-    "matchId": "gt-vs-mi-1629433125",
+  "france-vs-scotland-1629433126-france-vs-scotland-1629433126": {
+    "matchId": "france-vs-scotland-1629433126",
     "source": "charlie",
     "m3u8_url": ""
   },
@@ -1809,6 +1804,11 @@
     "source": "foxtrot",
     "m3u8_url": ""
   },
+  "texas-childrens-houston-open-main-feed-third-round-1629433129-texas-childrens-houston-open-main-feed-third-round-1629433129": {
+    "matchId": "texas-childrens-houston-open-main-feed-third-round-1629433129",
+    "source": "charlie",
+    "m3u8_url": ""
+  },
   "bath-vs-harlequins-1629433131-bath-vs-harlequins-1629433131": {
     "matchId": "bath-vs-harlequins-1629433131",
     "source": "charlie",
@@ -1816,11 +1816,6 @@
   },
   "exeter-vs-newcastle-1629433130-exeter-vs-newcastle-1629433130": {
     "matchId": "exeter-vs-newcastle-1629433130",
-    "source": "charlie",
-    "m3u8_url": ""
-  },
-  "texas-childrens-houston-open-main-feed-third-round-1629433129-texas-childrens-houston-open-main-feed-third-round-1629433129": {
-    "matchId": "texas-childrens-houston-open-main-feed-third-round-1629433129",
     "source": "charlie",
     "m3u8_url": ""
   },
