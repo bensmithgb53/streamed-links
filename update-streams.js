@@ -18,8 +18,9 @@ const fs = require('fs');
     const matchData = await page.evaluate(async () => {
       const response = await fetch('https://streamed.su/api/matches/all');
       const matches = await response.json();
+      console.log('Raw matches:', JSON.stringify(matches)); // Debug API response
       const liveMatch = matches.find(m => m.date / 1000 > Math.floor(Date.now() / 1000) - 86400);
-      if (liveMatch) {
+      if (liveMatch && liveMatch.name) {
         return {
           watchUrl: `https://streamed.su/watch/${liveMatch.name.replace(/\s+/g, '-').toLowerCase()}/alpha/1`,
           name: liveMatch.name,
@@ -29,7 +30,11 @@ const fs = require('fs');
       }
       return null;
     });
-    if (!matchData) throw new Error('No live match found for watch URL');
+    if (!matchData) {
+      console.log('No live match with a valid name found');
+      await browser.close();
+      process.exit(0); // Exit gracefully
+    }
     console.log('Watch URL:', matchData.watchUrl);
 
     // Load embedme.top to get window.decrypt
