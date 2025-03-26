@@ -1,0 +1,59 @@
+name: Update Streams JSON
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Every 6 hours
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  update-streams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+      - name: Install dependencies
+        run: npm install node-fetch@2
+      - name: Generate streams.json
+        run: |
+          node -e "
+          const fetch = require('node-fetch');
+          (async () => {
+            const matches = await fetch('https://streamed.su/api/matches/all', {
+              headers: { 'User-Agent': 'Mozilla/5.0' }
+            }).then(r => r.json());
+            const currentTime = Math.floor(Date.now() / 1000);
+            const liveMatches = matches.filter(m => m.date / 1000 >= currentTime - 86400);
+            const streamPromises = liveMatches.flatMap(match =>
+              match.sources.map(source =>
+                fetch(\`https://streamed-proxy-vercel.vercel.app/api/get_m3u8?source=\${source.source}&id=\${match.id}&streamNo=1\`, {
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+                    'Referer': 'https://streamed.su/'
+                  }
+                })
+                  .then(r => r.json())
+                  .then(d => ({
+                    key: \`\${match.id}-\${source.id}\`,
+                    value: { matchId: match.id, source: source.source, m3u8_url: d.m3u8_url || '' }
+                  }))
+                  .catch(() => ({ key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: '' } }))
+              )
+            );
+            const streamsArray = await Promise.all(streamPromises);
+            const streams = streamsArray.reduce((acc, { key, value }) => {
+              acc[key] = value;
+              return acc;
+            }, {});
+            require('fs').writeFileSync('streams.json', JSON.stringify(streams, null, 2));
+          })();
+          "
+      - name: Commit changes
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add streams.json
+          git commit -m "Update streams.json" || echo "No changes"
+          git push
