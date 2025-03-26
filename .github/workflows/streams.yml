@@ -32,7 +32,7 @@ jobs:
 
             console.log('Loading embed page to initialize decrypt...');
             await page.goto('https://streamed.su/embed/alpha/tychy-vs-katowice/1');
-            await page.waitForTimeout(5000); // Wait 5 seconds for scripts/WASM to load
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds for scripts/WASM to load
 
             console.log('Fetching matches...');
             await page.goto('https://streamed.su');
