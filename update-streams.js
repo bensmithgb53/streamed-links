@@ -12,7 +12,6 @@ const fs = require('fs');
 
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36');
 
-    // Load embed page to initialize window.decrypt
     console.log('Loading embed page...');
     await page.goto('https://streamed.su/embed/alpha/1743016500000-tindastoll-w-stjarnan-w/1', { 
       waitUntil: 'networkidle2' 
@@ -21,7 +20,6 @@ const fs = require('fs');
     await page.waitForFunction('typeof window.decrypt === "function"', { timeout: 30000 });
     console.log('window.decrypt loaded');
 
-    // Fetch matches
     console.log('Fetching matches...');
     await page.goto('https://streamed.su', { waitUntil: 'networkidle2' });
     const matches = await page.evaluate(async () => {
@@ -36,7 +34,6 @@ const fs = require('fs');
     const liveMatches = matches.filter(m => m.date / 1000 >= currentTime - 86400);
     console.log('Live matches:', liveMatches.length);
 
-    // Process streams
     const streams = {};
     for (const match of liveMatches.slice(0, 5)) {
       for (const source of match.sources) {
