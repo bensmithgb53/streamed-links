@@ -12,14 +12,27 @@ const fs = require('fs');
 
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36');
 
-    console.log('Loading embed page...');
-    await page.goto('https://streamed.su/embed/alpha/1743016500000-tindastoll-w-stjarnan-w/1', { 
-      waitUntil: 'networkidle2' 
+    // Fetch a current match to get a watch URL
+    console.log('Fetching matches to find a watch URL...');
+    await page.goto('https://streamed.su', { waitUntil: 'networkidle2' });
+    const watchUrl = await page.evaluate(async () => {
+      const response = await fetch('https://streamed.su/api/matches/all');
+      const matches = await response.json();
+      const liveMatch = matches.find(m => m.date / 1000 > Math.floor(Date.now() / 1000) - 86400);
+      return liveMatch ? `https://streamed.su/watch/${liveMatch.name.replace(/\s+/g, '-').toLowerCase()}/alpha/1` : null;
     });
-    console.log('Waiting for window.decrypt to load...');
+    if (!watchUrl) throw new Error('No live match found for watch URL');
+    console.log('Watch URL:', watchUrl);
+
+    // Load the embedme.top page via the watch URL
+    console.log('Loading embedme.top page to get window.decrypt...');
+    await page.goto(watchUrl, { waitUntil: 'networkidle2' });
+    console.log('Current URL after redirect:', page.url());
+    console.log('Waiting for window.decrypt...');
     await page.waitForFunction('typeof window.decrypt === "function"', { timeout: 60000 });
     console.log('window.decrypt loaded');
 
+    // Fetch matches again (stay on embedme.top for decrypt)
     console.log('Fetching matches...');
     await page.goto('https://streamed.su', { waitUntil: 'networkidle2' });
     const matches = await page.evaluate(async () => {
@@ -34,6 +47,7 @@ const fs = require('fs');
     const liveMatches = matches.filter(m => m.date / 1000 >= currentTime - 86400);
     console.log('Live matches:', liveMatches.length);
 
+    // Process streams using window.decrypt from embedme.top
     const streams = {};
     for (const match of liveMatches.slice(0, 5)) {
       for (const source of match.sources) {
