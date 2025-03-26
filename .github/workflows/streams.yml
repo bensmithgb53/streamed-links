@@ -30,9 +30,13 @@ jobs:
 
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36');
 
+            // Load embed page with a current match
             console.log('Loading embed page to initialize decrypt...');
-            await page.goto('https://streamed.su/embed/alpha/tychy-vs-katowice/1');
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds for scripts/WASM to load
+            await page.goto('https://streamed.su/embed/alpha/1743016500000-tindastoll-w-stjarnan-w/1');
+            console.log('Waiting for scripts to load...');
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
+            const decryptAvailable = await page.evaluate(() => typeof window.decrypt === 'function');
+            console.log('Is window.decrypt available?', decryptAvailable);
 
             console.log('Fetching matches...');
             await page.goto('https://streamed.su');
@@ -66,7 +70,8 @@ jobs:
                       body: JSON.stringify({ source, id, streamNo: '1' })
                     });
                     const enc = await response.text();
-                    console.log('Encrypted:', enc);
+                    console.log('Encrypted data:', enc);
+                    if (typeof window.decrypt !== 'function') throw new Error('window.decrypt not loaded');
                     return 'https://rr.vipstreams.in' + window.decrypt(enc);
                   }, source.source, match.id);
                   console.log('Decrypted m3u8 URL:', m3u8Url);
