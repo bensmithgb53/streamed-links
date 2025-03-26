@@ -37,27 +37,23 @@ jobs:
 
             const streamPromises = liveMatches.flatMap(match => {
               console.log('Processing match:', match.id);
-              return match.sources.map(source => {
+              return match.sources.map(async source => {
                 console.log('Fetching stream for source:', source.source, 'id:', match.id);
-                return fetch(\`https://streamed-proxy-vercel.vercel.app/api/get_m3u8?source=\${source.source}&id=\${match.id}&streamNo=1\`, {
+                const streamRes = await fetch(\`https://streamed.su/api/matches/watch/\${match.id}/\${source.source}/1\`, {
                   headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-                    'Referer': 'https://streamed.su/'
+                    'Referer': 'https://streamed.su/',
+                    'Accept': 'application/json'
                   }
-                })
-                  .then(r => r.json())
-                  .then(d => {
-                    console.log('Stream fetched:', d.m3u8_url || 'empty');
-                    return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: d.m3u8_url || '' } };
-                  })
-                  .catch(e => {
-                    console.log('Error fetching stream:', e.message);
-                    return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: '' } };
-                  });
+                });
+                const streamData = await streamRes.json();
+                const m3u8Url = streamData.url || '';
+                console.log('Stream fetched:', m3u8Url || 'empty');
+                return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: m3u8Url } };
               });
             });
 
-            const streamsArray = await Promise.all(streamPromises);
+            const streamsArray = await Promise.all(streamPromises.flat());
             const streams = streamsArray.reduce((acc, { key, value }) => {
               acc[key] = value;
               return acc;
