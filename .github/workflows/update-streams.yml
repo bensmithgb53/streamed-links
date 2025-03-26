@@ -46,10 +46,14 @@ jobs:
                     'Accept': 'application/json'
                   }
                 })
-                  .then(r => r.json())
-                  .then(d => {
-                    const m3u8Url = d.m3u8_url && d.m3u8_url.endsWith('.m3u8') ? d.m3u8_url : '';
-                    console.log('Stream fetched:', m3u8Url || 'empty');
+                  .then(async r => {
+                    const status = r.status;
+                    const text = await r.text();
+                    console.log('Proxy response status:', status);
+                    console.log('Proxy response body:', text);
+                    const data = JSON.parse(text);
+                    const m3u8Url = data.m3u8_url || '';
+                    console.log('Parsed m3u8_url:', m3u8Url);
                     return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: m3u8Url } };
                   })
                   .catch(e => {
