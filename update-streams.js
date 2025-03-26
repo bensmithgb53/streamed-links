@@ -17,7 +17,7 @@ const fs = require('fs');
       waitUntil: 'networkidle2' 
     });
     console.log('Waiting for window.decrypt to load...');
-    await page.waitForFunction('typeof window.decrypt === "function"', { timeout: 30000 });
+    await page.waitForFunction('typeof window.decrypt === "function"', { timeout: 60000 });
     console.log('window.decrypt loaded');
 
     console.log('Fetching matches...');
