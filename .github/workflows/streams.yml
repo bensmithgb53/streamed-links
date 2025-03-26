@@ -28,10 +28,8 @@ jobs:
             const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
             const page = await browser.newPage();
 
-            // Set User-Agent to mimic a real browser
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36');
 
-            // Fetch all matches
             console.log('Fetching matches...');
             await page.goto('https://streamed.su');
             const matches = await page.evaluate(async () => {
@@ -42,12 +40,10 @@ jobs:
             });
             console.log('Matches fetched:', matches.length);
 
-            // Filter live matches (within last 24 hours)
             const currentTime = Math.floor(Date.now() / 1000);
             const liveMatches = matches.filter(m => m.date / 1000 >= currentTime - 86400);
             console.log('Live matches:', liveMatches.length);
 
-            // Fetch m3u8 URLs for each match and source
             const streamPromises = liveMatches.flatMap(match => {
               console.log('Processing match:', match.id);
               return match.sources.map(async source => {
@@ -66,10 +62,10 @@ jobs:
                     const enc = await response.text();
                     return 'https://rr.vipstreams.in' + window.decrypt(enc);
                   }, source.source, match.id);
-                  return { key: `${match.id}-${source.id}`, value: { matchId: match.id, source: source.source, m3u8_url: m3u8Url } };
+                  return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: m3u8Url } };
                 } catch (e) {
                   console.log('Error fetching stream:', e.message);
-                  return { key: `${match.id}-${source.id}`, value: { matchId: match.id, source: source.source, m3u8_url: '' } };
+                  return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: '' } };
                 }
               });
             });
@@ -81,7 +77,6 @@ jobs:
             }, {});
             console.log('Streams generated:', Object.keys(streams).length);
 
-            // Write streams.json
             require('fs').writeFileSync('streams.json', JSON.stringify(streams, null, 2));
             console.log('streams.json written');
 
