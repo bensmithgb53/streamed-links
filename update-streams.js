@@ -12,13 +12,13 @@ const fs = require('fs');
 
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36');
 
-    // Fetch a current match to get a watch URL
-    console.log('Fetching matches to find a watch URL...');
+    // Fetch a current match
+    console.log('Fetching matches...');
     await page.goto('https://streamed.su', { waitUntil: 'networkidle2' });
     const matchData = await page.evaluate(async () => {
       const response = await fetch('https://streamed.su/api/matches/all');
       const matches = await response.json();
-      console.log('Raw matches:', JSON.stringify(matches)); // Debug API response
+      console.log('Raw matches:', JSON.stringify(matches.slice(0, 5))); // Log first 5 for debug
       const liveMatch = matches.find(m => m.date / 1000 > Math.floor(Date.now() / 1000) - 86400);
       if (liveMatch && liveMatch.name) {
         return {
@@ -33,48 +33,43 @@ const fs = require('fs');
     if (!matchData) {
       console.log('No live match with a valid name found');
       await browser.close();
-      process.exit(0); // Exit gracefully
+      process.exit(0);
     }
     console.log('Watch URL:', matchData.watchUrl);
 
-    // Load embedme.top to get window.decrypt
-    console.log('Loading embedme.top page...');
-    console.time('decryptLoad');
-    await page.goto(matchData.watchUrl, { waitUntil: 'networkidle2' });
-    console.log('Current URL after redirect:', page.url());
-    console.log('Waiting for window.decrypt...');
-    await page.waitForFunction('typeof window.decrypt === "function"', { timeout: 60000 });
-    console.timeEnd('decryptLoad');
-    console.log('window.decrypt loaded');
+    // Capture M3U8 URLs from network requests
+    const m3u8Urls = new Set();
+    page.on('response', response => {
+      const url = response.url();
+      if (url.endsWith('.m3u8')) {
+        console.log('Found M3U8 URL:', url);
+        m3u8Urls.add(url);
+      }
+    });
 
-    // Process streams using the live match data
+    console.log('Loading watch page to capture M3U8...');
+    await page.goto(matchData.watchUrl, { waitUntil: 'networkidle2' });
+    console.log('Current URL:', page.url());
+
+    // Wait a bit for video to load (adjust as needed)
+    await page.waitForTimeout(10000); // 10s to allow stream to start
+
+    // Build streams object
     const streams = {};
-    for (const source of matchData.sources) {
-      console.log('Fetching stream for:', matchData.id, source.source);
-      try {
-        const m3u8Url = await page.evaluate(async (source, id) => {
-          const response = await fetch('https://embedme.top/fetch', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-              'Referer': 'https://streamed.su/',
-              'Origin': 'https://streamed.su/',
-              'Accept': '*/*'
-            },
-            body: JSON.stringify({ source, id, streamNo: '1' })
-          });
-          const enc = await response.text();
-          return 'https://rr.vipstreams.in' + window.decrypt(enc);
-        }, source.source, matchData.id);
-        streams[`${matchData.id}-${source.id}`] = {
-          matchId: matchData.id,
-          source: source.source,
-          m3u8_url: m3u8Url
-        };
-      } catch (e) {
-        console.error('Error fetching stream:', matchData.id, source.source, e.message);
-        streams[`${matchData.id}-${source.id}`] = {
+    let index = 0;
+    for (const m3u8Url of m3u8Urls) {
+      const key = `${matchData.id}-${index++}`;
+      streams[key] = {
+        matchId: matchData.id,
+        source: matchData.sources[0]?.source || 'unknown', // Fallback if sources empty
+        m3u8_url: m3u8Url
+      };
+    }
+
+    if (Object.keys(streams).length === 0) {
+      console.log('No M3U8 URLs captured');
+      for (const source of matchData.sources) {
+        streams[`${matchData.id}-${source.id || index++}`] = {
           matchId: matchData.id,
           source: source.source,
           m3u8_url: ''
