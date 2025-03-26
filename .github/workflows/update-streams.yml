@@ -18,48 +18,59 @@ jobs:
         with:
           node-version: '16'
       - name: Install dependencies
-        run: npm install node-fetch@2
+        run: npm install puppeteer
       - name: Generate streams.json
         run: |
           node -e "
-          const fetch = require('node-fetch');
+          const puppeteer = require('puppeteer');
           (async () => {
+            console.log('Launching browser...');
+            const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+            const page = await browser.newPage();
+
+            // Set User-Agent to mimic a real browser
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36');
+
+            // Fetch all matches
             console.log('Fetching matches...');
-            const matchesRes = await fetch('https://streamed.su/api/matches/all', {
-              headers: { 'User-Agent': 'Mozilla/5.0' }
+            await page.goto('https://streamed.su');
+            const matches = await page.evaluate(async () => {
+              const response = await fetch('https://streamed.su/api/matches/all', {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+              });
+              return response.json();
             });
-            const matches = await matchesRes.json();
             console.log('Matches fetched:', matches.length);
 
+            // Filter live matches (within last 24 hours)
             const currentTime = Math.floor(Date.now() / 1000);
             const liveMatches = matches.filter(m => m.date / 1000 >= currentTime - 86400);
             console.log('Live matches:', liveMatches.length);
 
+            // Fetch m3u8 URLs for each match and source
             const streamPromises = liveMatches.flatMap(match => {
               console.log('Processing match:', match.id);
-              return match.sources.map(source => {
+              return match.sources.map(async source => {
                 console.log('Fetching stream for source:', source.source, 'id:', match.id);
-                return fetch(\`https://streamed-proxy-vercel.vercel.app/api/get_m3u8?source=\${source.source}&id=\${match.id}&streamNo=1\`, {
-                  headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-                    'Referer': 'https://streamed.su/',
-                    'Accept': 'application/json'
-                  }
-                })
-                  .then(async r => {
-                    const status = r.status;
-                    const text = await r.text();
-                    console.log('Proxy response status:', status);
-                    console.log('Proxy response body:', text);
-                    const data = JSON.parse(text);
-                    const m3u8Url = data.m3u8_url || '';
-                    console.log('Parsed m3u8_url:', m3u8Url);
-                    return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: m3u8Url } };
-                  })
-                  .catch(e => {
-                    console.log('Error fetching stream:', e.message);
-                    return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: '' } };
-                  });
+                try {
+                  const m3u8Url = await page.evaluate(async (source, id, streamNo) => {
+                    const response = await fetch('https://embedme.top/fetch', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Referer': 'https://streamed.su/',
+                        'Origin': 'https://streamed.su/'
+                      },
+                      body: JSON.stringify({ source, id, streamNo: '1' })
+                    });
+                    const enc = await response.text();
+                    return 'https://rr.vipstreams.in' + window.decrypt(enc);
+                  }, source.source, match.id);
+                  return { key: `${match.id}-${source.id}`, value: { matchId: match.id, source: source.source, m3u8_url: m3u8Url } };
+                } catch (e) {
+                  console.log('Error fetching stream:', e.message);
+                  return { key: `${match.id}-${source.id}`, value: { matchId: match.id, source: source.source, m3u8_url: '' } };
+                }
               });
             });
 
@@ -70,8 +81,11 @@ jobs:
             }, {});
             console.log('Streams generated:', Object.keys(streams).length);
 
+            // Write streams.json
             require('fs').writeFileSync('streams.json', JSON.stringify(streams, null, 2));
             console.log('streams.json written');
+
+            await browser.close();
           })();
           "
       - name: Commit changes
