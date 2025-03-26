@@ -30,6 +30,10 @@ jobs:
 
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36');
 
+            console.log('Loading embed page to initialize decrypt...');
+            await page.goto('https://streamed.su/embed/alpha/tychy-vs-katowice/1');
+            await page.waitForTimeout(5000); // Wait 5 seconds for scripts/WASM to load
+
             console.log('Fetching matches...');
             await page.goto('https://streamed.su');
             const matches = await page.evaluate(async () => {
@@ -54,14 +58,18 @@ jobs:
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
                         'Referer': 'https://streamed.su/',
-                        'Origin': 'https://streamed.su/'
+                        'Origin': 'https://streamed.su/',
+                        'Accept': '*/*'
                       },
                       body: JSON.stringify({ source, id, streamNo: '1' })
                     });
                     const enc = await response.text();
+                    console.log('Encrypted:', enc);
                     return 'https://rr.vipstreams.in' + window.decrypt(enc);
                   }, source.source, match.id);
+                  console.log('Decrypted m3u8 URL:', m3u8Url);
                   return { key: \`\${match.id}-\${source.id}\`, value: { matchId: match.id, source: source.source, m3u8_url: m3u8Url } };
                 } catch (e) {
                   console.log('Error fetching stream:', e.message);
