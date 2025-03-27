@@ -1,12 +1,12 @@
 {
-  "name": "streamed-links",
-  "version": "1.0.0",
-  "description": "Script to extract m3u8 URLs",
-  "main": "update-streams.js",
-  "dependencies": {
-    "puppeteer": "^21.0.0"
-  },
-  "scripts": {
-    "start": "node update-streams.js alpha sky-sports-darts 1"
-  }
+    "name": "m3u8-scraper",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "puppeteer-extra": "^21.0.0",
+        "puppeteer-extra-plugin-stealth": "^2.11.2"
+    }
 }
