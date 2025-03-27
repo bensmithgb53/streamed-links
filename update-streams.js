@@ -26,7 +26,6 @@ async function getM3u8FromEmbed(embedUrl) {
     console.log(`Navigating to embed URL: ${embedUrl}`);
     await page.goto(embedUrl, { waitUntil: 'networkidle2' });
 
-    // Try to start the stream
     await page.waitForTimeout(10000);
     await page.evaluate(() => {
         const playButton = document.querySelector('button[class*="play"], video, #player, .vjs-big-play-button');
@@ -35,7 +34,7 @@ async function getM3u8FromEmbed(embedUrl) {
     await page.waitForTimeout(10000);
 
     await browser.close();
-    return Array.from(m3u8Urls); // Return all found m3u8 URLs
+    return Array.from(m3u8Urls);
 }
 
 async function findEmbedLinksAndGetM3u8(source, id, streamNo) {
@@ -55,24 +54,44 @@ async function findEmbedLinksAndGetM3u8(source, id, streamNo) {
     console.log(`Navigating to hub URL: ${watchUrl}`);
     await page.goto(watchUrl, { waitUntil: 'networkidle2' });
 
-    // Wait for dynamic content
+    // Wait for dynamic content and scroll to trigger loading
+    await page.waitForTimeout(10000);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(5000);
 
-    // Find all embed links
+    // Capture embed links dynamically
     const embedLinks = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a, iframe, script[src]'));
-        return links
-            .map(link => link.href || link.src)
-            .filter(url => url && url.includes('https://embedme.top/embed/'));
+        return Array.from(document.querySelectorAll('iframe[src], script[src]'))
+            .map(el => el.src)
+            .filter(src => src && src.includes('https://embedme.top/embed/'));
+    });
+
+    // Also check network requests for embed URLs
+    const allRequests = new Set();
+    const m3u8UrlsDirect = new Set();
+    page.on('request', request => {
+        const url = request.url();
+        allRequests.add(url);
+        if (url.includes('https://embedme.top/embed/')) {
+            embedLinks.push(url);
+        }
+        if (url.endsWith('.m3u8')) {
+            m3u8UrlsDirect.add(url);
+            console.log(`Found m3u8 directly on hub: ${url}`);
+        }
     });
 
     console.log(`Found ${embedLinks.length} embed links:`);
     embedLinks.forEach(link => console.log(link));
+    console.log("All requests captured:");
+    allRequests.forEach(req => console.log(req));
+
+    await page.waitForTimeout(5000); // Extra wait for network activity
 
     await browser.close();
 
-    // Visit each embed link and collect m3u8 URLs
-    const allM3u8Urls = [];
+    // Process embed links
+    const allM3u8Urls = Array.from(m3u8UrlsDirect);
     for (const embedLink of embedLinks) {
         const m3u8Urls = await getM3u8FromEmbed(embedLink);
         allM3u8Urls.push(...m3u8Urls);
@@ -86,14 +105,13 @@ async function updateStreams() {
         "sky-sports-darts": {
             "matchId": "sky-sports-darts",
             "source": "alpha",
-            "m3u8_urls": [] // Changed to array to store multiple URLs
+            "m3u8_urls": []
         },
         "maccabi-tel-aviv-vs-panathinaikos-maccabi-tel-aviv-vs-panathinaikos": {
             "matchId": "maccabi-tel-aviv-vs-panathinaikos",
             "source": "alpha",
             "m3u8_urls": []
         }
-        // Add more entries as needed
     };
 
     for (const key in data) {
