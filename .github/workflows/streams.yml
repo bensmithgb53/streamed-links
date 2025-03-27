@@ -20,7 +20,7 @@ jobs:
           node-version: '16'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci # Faster and more reliable than npm install
 
       - name: Run scraper
         run: node index.js alpha sky-sports-darts 1
@@ -40,4 +40,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: npm-logs
-          path: /home/runner/.npm/_logs/*.log
+          path: ~/.npm/_logs/*.log
