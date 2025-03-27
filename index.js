@@ -19,6 +19,7 @@ async function getM3u8(source, id, streamNo) {
     let m3u8Url = null;
     page.on("response", async (response) => {
         const url = response.url();
+        console.log("Response:", url);
         if (url.endsWith('.m3u8')) {
             m3u8Url = url;
             console.log("Found m3u8:", m3u8Url);
@@ -29,12 +30,8 @@ async function getM3u8(source, id, streamNo) {
     console.log("Navigating to:", url);
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 0 });
 
-    // Extract team name from URL or page title
-    const teamName = await page.evaluate(() => {
-        return document.title || window.location.pathname.split('/')[2]; // e.g., "sky-sports-darts"
-    });
-
-    await page.waitForTimeout(2000); // Based on 1.4s timing
+    const teamName = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
+    await page.waitForTimeout(2000);
 
     try {
         await page.waitForSelector('video, #player, .vjs-tech', { timeout: 5000 });
@@ -52,13 +49,7 @@ async function getM3u8(source, id, streamNo) {
     await browser.close();
 
     if (m3u8Url) {
-        // Load existing streams.json or create new
-        let streams = [];
-        if (fs.existsSync('streams.json')) {
-            streams = JSON.parse(fs.readFileSync('streams.json', 'utf8'));
-        }
-
-        // Add new entry
+        let streams = fs.existsSync('streams.json') ? JSON.parse(fs.readFileSync('streams.json', 'utf8')) : [];
         streams.push({ teamName, m3u8Url });
         fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
         console.log(`Saved: ${teamName} -> ${m3u8Url}`);
