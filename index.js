@@ -9,13 +9,12 @@ async function getM3u8(source, id, streamNo) {
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled', // Hide automation
+            '--disable-blink-features=AutomationControlled',
             '--window-size=1920,1080'
         ]
     });
     const page = await browser.newPage();
 
-    // Extra stealth to bypass Cloudflare
     await page.evaluateOnNewDocument(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
         window.navigator.chrome = { runtime: {} };
@@ -31,7 +30,7 @@ async function getM3u8(source, id, streamNo) {
     page.on("response", async (response) => {
         const url = response.url();
         console.log("Response:", url);
-        if (url.endsWith('.m3u8')) {
+        if (url.includes('.m3u8')) { // Broaden to catch any .m3u8
             m3u8Url = url;
             console.log("Found m3u8:", m3u8Url);
         }
@@ -43,31 +42,10 @@ async function getM3u8(source, id, streamNo) {
 
     const teamName = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
     console.log("Team name extracted:", teamName);
-    await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10s
 
-    try {
-        console.log("Looking for video player...");
-        await page.waitForSelector('video, #player, .vjs-tech', { timeout: 15000 });
-        await page.evaluate(() => {
-            const video = document.querySelector('video') || document.querySelector('.vjs-tech');
-            if (video) {
-                console.log("Video found, playing...");
-                if (video.paused) video.play();
-            } else {
-                console.log("No video element found");
-            }
-            const playButton = document.querySelector('button[title="Play"], .vjs-play-control');
-            if (playButton) {
-                console.log("Play button found, clicking...");
-                playButton.click();
-            } else {
-                console.log("No play button found");
-            }
-        });
-        await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10s after play
-    } catch (e) {
-        console.log("Player interaction failed:", e.message);
-    }
+    // Wait longer to capture all network responses
+    console.log("Waiting for network responses...");
+    await new Promise(resolve => setTimeout(resolve, 20000)); // 20s total wait
 
     console.log("Final m3u8Url value:", m3u8Url || "Not found");
     if (m3u8Url) {
