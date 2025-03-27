@@ -1,12 +1,6 @@
-name: Update Streams JSON
+name: Update Streams
 
-on:
-  schedule:
-    - cron: '0 */6 * * *' # Every 6 hours
-  workflow_dispatch: # Manual trigger
-
-permissions:
-  contents: write # Allow writing to repo
+on: [push]
 
 jobs:
   update-streams:
@@ -16,15 +10,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: '18'
       - name: Install dependencies
-        run: npm install puppeteer
-      - name: Generate streams.json
-        run: node update-streams.js
-      - name: Commit changes
-        run: |
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
-          git add streams.json
-          git commit -m "Update streams.json with decrypted m3u8 URLs" || echo "No changes to commit"
-          git push
+        run: npm install
+      - name: Run script
+        run: node update-streams.js alpha sky-sports-darts 1
