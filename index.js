@@ -4,10 +4,9 @@ const fs = require('fs');
 puppeteer.use(StealthPlugin());
 
 async function getM3u8(source, id, streamNo, page) {
-    let m3u8Urls = []; // Collect all m3u8 URLs
+    let m3u8Urls = [];
     page.on("response", async (response) => {
         const url = response.url();
-        console.log("Response:", url);
         if (url.includes('.m3u8')) {
             m3u8Urls.push(url);
             console.log("Found m3u8:", url);
@@ -21,11 +20,10 @@ async function getM3u8(source, id, streamNo, page) {
     const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
     console.log("Title extracted:", title);
 
-    // Wait to capture all network responses
     console.log("Waiting for network responses...");
-    await new Promise(resolve => setTimeout(resolve, 20000)); // 20s wait
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Reduced to 10s
 
-    console.log("Final m3u8Urls value:", m3u8Urls.length > 0 ? m3u8Urls : "Not found");
+    console.log("Final m3u8Urls:", m3u8Urls.length > 0 ? m3u8Urls : "Not found");
     return { title, m3u8Urls: m3u8Urls.length > 0 ? m3u8Urls : [] };
 }
 
@@ -59,9 +57,8 @@ async function scrapeSpecificCategories() {
     ];
     let allGames = [];
 
-    // Scrape games from each category
     for (const categoryUrl of categories) {
-        console.log(`Scraping games from ${categoryUrl}...`);
+        console.log(`Scraping ${categoryUrl}...`);
         await page.goto(categoryUrl, { waitUntil: 'networkidle0', timeout: 0 });
 
         const games = await page.evaluate(() => {
@@ -76,53 +73,36 @@ async function scrapeSpecificCategories() {
         allGames = allGames.concat(games);
         console.log(`Found ${games.length} games in ${categoryUrl}`);
     }
-    console.log("Total games found:", allGames);
+    console.log("Total games:", allGames.length);
 
-    const sources = ['alpha', 'bravo', 'charlie']; // Adjust as needed
-    const maxStreamNo = 3; // Adjust based on how many streams per source
-    let streams = fs.existsSync('streams.json') ? JSON.parse(fs.readFileSync('streams.json', 'utf8')) : [];
+    const sources = ['alpha', 'bravo', 'charlie'];
+    const maxStreamNo = 1; // Reduced to 1 for speed
+    let streams = []; // Start fresh, no loading old data
 
     for (const game of allGames) {
         for (const source of sources) {
-            let gameStreams = [];
-            for (let streamNo = 1; streamNo <= maxStreamNo; streamNo++) {
-                const { title, m3u8Urls } = await getM3u8(source, game.id, streamNo, page);
-                if (m3u8Urls.length > 0) {
-                    gameStreams.push(...m3u8Urls.map(url => ({
+            const { title, m3u8Urls } = await getM3u8(source, game.id, 1, page); // Only streamNo 1
+            if (m3u8Urls.length > 0) {
+                streams.push({
+                    id: game.id,
+                    title: game.title,
+                    source: source,
+                    m3u8: m3u8Urls.map(url => ({
                         m3u8: url,
                         headers: {
                             "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
                             "Referer": "https://embedme.top/"
                         }
-                    })));
-                }
-            }
-
-            if (gameStreams.length > 0) {
-                let existingEntry = streams.find(s => s.id === game.id && s.source === source);
-                if (existingEntry) {
-                    const existingUrls = new Set(existingEntry.m3u8.map(item => item.m3u8));
-                    gameStreams.forEach(newStream => {
-                        if (!existingUrls.has(newStream.m3u8)) {
-                            existingEntry.m3u8.push(newStream);
-                        }
-                    });
-                } else {
-                    streams.push({
-                        id: game.id,
-                        title: game.title,
-                        source: source,
-                        m3u8: gameStreams
-                    });
-                }
-                console.log(`Added ${game.id} (${source}) with ${gameStreams.length} streams`);
+                    }))
+                });
+                console.log(`Added ${game.id} (${source}) with ${m3u8Urls.length} streams`);
             }
         }
     }
 
-    // Save to streams.json
+    // Overwrite streams.json with fresh data
     fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
-    console.log("Saved all streams to streams.json");
+    console.log("Overwrote streams.json with new data");
 
     await browser.close();
 }
