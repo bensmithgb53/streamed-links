@@ -31,17 +31,17 @@ async function getM3u8(source, id, streamNo) {
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 0 });
 
     const teamName = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s
 
     try {
-        await page.waitForSelector('video, #player, .vjs-tech', { timeout: 5000 });
+        await page.waitForSelector('video, #player, .vjs-tech', { timeout: 10000 });
         await page.evaluate(() => {
             const video = document.querySelector('video') || document.querySelector('.vjs-tech');
             if (video && video.paused) video.play();
             const playButton = document.querySelector('button[title="Play"], .vjs-play-control');
             if (playButton) playButton.click();
         });
-        await page.waitForTimeout(3000);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s after play
     } catch (e) {
         console.log("Player interaction failed:", e.message);
     }
