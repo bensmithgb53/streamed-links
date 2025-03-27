@@ -1,7 +1,10 @@
 const puppeteer = require('puppeteer');
 
 async function getM3u8(source, id, streamNo) {
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'] // Add these flags
+    });
     const page = await browser.newPage();
 
     await page.setExtraHTTPHeaders({
