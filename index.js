@@ -29,7 +29,7 @@ async function getM3u8(source, id, streamNo, page) {
     return { title, m3u8Urls: m3u8Urls.length > 0 ? m3u8Urls : [] };
 }
 
-async function scrapeAllGames() {
+async function scrapeSpecificCategories() {
     const browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -52,26 +52,37 @@ async function scrapeAllGames() {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
     });
 
-    // Navigate to streamed.su to scrape game IDs
-    console.log("Scraping game IDs from streamed.su...");
-    await page.goto('https://streamed.su', { waitUntil: 'networkidle0', timeout: 0 });
+    const categories = [
+        'https://streamed.su/category/football',
+        'https://streamed.su/category/fight',
+        'https://streamed.su/category/darts'
+    ];
+    let allGames = [];
 
-    const games = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a[href*="/watch/"]'));
-        return links.map(link => {
-            const href = link.getAttribute('href');
-            const id = href.split('/watch/')[1]?.split('/')[0]; // Extract game ID from URL
-            const title = link.textContent.trim() || href.split('/')[2];
-            return { id, title };
-        }).filter(game => game.id); // Filter out invalid entries
-    });
-    console.log("Found games:", games);
+    // Scrape games from each category
+    for (const categoryUrl of categories) {
+        console.log(`Scraping games from ${categoryUrl}...`);
+        await page.goto(categoryUrl, { waitUntil: 'networkidle0', timeout: 0 });
 
-    const sources = ['alpha', 'bravo', 'charlie']; // Known sources; expand as needed
-    const maxStreamNo = 3; // Max stream numbers to try per source (adjust as needed)
+        const games = await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a[href*="/watch/"]'));
+            return links.map(link => {
+                const href = link.getAttribute('href');
+                const id = href.split('/watch/')[1]?.split('/')[0];
+                const title = link.textContent.trim() || href.split('/')[2];
+                return { id, title };
+            }).filter(game => game.id);
+        });
+        allGames = allGames.concat(games);
+        console.log(`Found ${games.length} games in ${categoryUrl}`);
+    }
+    console.log("Total games found:", allGames);
+
+    const sources = ['alpha', 'bravo', 'charlie']; // Adjust as needed
+    const maxStreamNo = 3; // Adjust based on how many streams per source
     let streams = fs.existsSync('streams.json') ? JSON.parse(fs.readFileSync('streams.json', 'utf8')) : [];
 
-    for (const game of games) {
+    for (const game of allGames) {
         for (const source of sources) {
             let gameStreams = [];
             for (let streamNo = 1; streamNo <= maxStreamNo; streamNo++) {
@@ -88,7 +99,6 @@ async function scrapeAllGames() {
             }
 
             if (gameStreams.length > 0) {
-                // Check if entry exists
                 let existingEntry = streams.find(s => s.id === game.id && s.source === source);
                 if (existingEntry) {
                     const existingUrls = new Set(existingEntry.m3u8.map(item => item.m3u8));
@@ -117,4 +127,4 @@ async function scrapeAllGames() {
     await browser.close();
 }
 
-scrapeAllGames().then(() => console.log("Scraping completed"));
+scrapeSpecificCategories().then(() => console.log("Scraping completed"));
