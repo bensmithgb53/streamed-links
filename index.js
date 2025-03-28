@@ -4,32 +4,52 @@ const fs = require('fs');
 puppeteer.use(StealthPlugin());
 
 async function getM3u8(source, id, streamNo, page) {
-    let m3u8Urls = new Set(); // Use Set to avoid duplicates within this call
+    let m3u8Urls = new Set();
     const responseHandler = async (response) => {
         const url = response.url();
         console.log("Response:", url);
         if (url.includes('.m3u8')) {
-            m3u8Urls.add(url); // Add unique URLs
-            console.log("Found m3u8:", url);
+            m3u8Urls.add(url);
+        } else if (url.includes('challenges.cloudflare.com')) {
+            console.log("Cloudflare challenge detected!");
+            throw new Error("Cloudflare block encountered");
         }
     };
     page.on("response", responseHandler);
 
     const url = `https://streamed.su/watch/${id}/${source}/${streamNo}`;
     console.log("Navigating to:", url);
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 0 });
+    try {
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+    } catch (error) {
+        console.error(`Navigation failed: ${error.message}`);
+        throw error;
+    }
 
-    const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
+    const title = await page.evaluate(() => document.title || "Unknown");
     console.log("Title extracted:", title);
 
-    // Wait to capture all network responses
-    console.log("Waiting for network responses...");
-    await new Promise(resolve => setTimeout(resolve, 20000)); // 20s wait
+    await new Promise(resolve => setTimeout(resolve, 10000)); // 10s wait
+    page.off("response", responseHandler);
 
-    page.off("response", responseHandler); // Remove listener to avoid carryover
-
-    console.log("Final m3u8Urls value:", m3u8Urls.size > 0 ? Array.from(m3u8Urls) : "Not found");
     return { title, m3u8Urls: Array.from(m3u8Urls) };
+}
+
+async function fetchMatches(page) {
+    console.log("Fetching matches from API...");
+    try {
+        await page.goto('https://streamed.su/api/matches/all', { waitUntil: 'networkidle0', timeout: 60000 });
+        const content = await page.content();
+        if (content.includes('challenges.cloudflare.com')) {
+            throw new Error("Cloudflare blocked API access");
+        }
+        const matches = await page.evaluate(() => JSON.parse(document.body.textContent));
+        console.log("Found matches:", matches.length);
+        return matches;
+    } catch (error) {
+        console.error(`API fetch failed: ${error.message}`);
+        throw error;
+    }
 }
 
 async function scrapeMatches() {
@@ -44,27 +64,29 @@ async function scrapeMatches() {
     });
     const page = await browser.newPage();
 
+    // Enhance stealth
     await page.evaluateOnNewDocument(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
         window.navigator.chrome = { runtime: {} };
+        Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
     });
 
-    // Headers for API request
     await page.setExtraHTTPHeaders({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-        "Referer": "https://streamed.su/"
+        "Referer": "https://streamed.su/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5"
     });
 
-    // Fetch matches from API
-    console.log("Fetching matches from API...");
-    await page.goto('https://streamed.su/api/matches/all', { waitUntil: 'networkidle0', timeout: 0 });
-    const matches = await page.evaluate(() => JSON.parse(document.body.textContent));
-    console.log("Found matches:", matches.length);
-
-    // Filter for football, darts, and fighting
-    const allowedCategories = ['football', 'darts', 'fighting'];
-    const games = matches.filter(match => allowedCategories.includes(match.category));
-    console.log("Filtered games (football, darts, fighting):", games.length);
+    // Fetch all matches
+    let matches;
+    try {
+        matches = await fetchMatches(page);
+    } catch (error) {
+        await browser.close();
+        console.log("Script terminated due to API access failure.");
+        return;
+    }
 
     // Headers for m3u8 scraping
     await page.setExtraHTTPHeaders({
@@ -73,30 +95,36 @@ async function scrapeMatches() {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
     });
 
-    const sources = ['alpha', 'bravo', 'charlie']; // Expand as needed
-    const maxStreamNo = 3; // Adjust based on how many streams per source
+    const maxStreamNo = 3;
     let streams = fs.existsSync('streams.json') ? JSON.parse(fs.readFileSync('streams.json', 'utf8')) : [];
 
-    for (const game of games) {
+    for (const match of matches) {
         let gameStreams = [];
-        for (const source of sources) {
+        const matchSources = match.sources.map(s => s.source); // Use API-provided sources
+        for (const source of matchSources) {
             for (let streamNo = 1; streamNo <= maxStreamNo; streamNo++) {
-                const { title, m3u8Urls } = await getM3u8(source, game.id, streamNo, page);
-                if (m3u8Urls.length > 0) {
-                    gameStreams.push(...m3u8Urls.map(url => ({
-                        source: source, // Include source in each m3u8 entry
-                        m3u8: url,
-                        headers: {
-                            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
-                            "Referer": "https://embedme.top/"
-                        }
-                    })));
+                try {
+                    const { title, m3u8Urls } = await getM3u8(source, match.id, streamNo, page);
+                    if (m3u8Urls.length > 0) {
+                        gameStreams.push(...m3u8Urls.map(url => ({
+                            source,
+                            m3u8: url,
+                            headers: {
+                                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
+                                "Referer": "https://embedme.top/"
+                            }
+                        })));
+                    }
+                } catch (error) {
+                    console.error(`Failed for ${match.id}/${source}/${streamNo}: ${error.message}`);
+                    await browser.close();
+                    console.log("Script terminated due to access failure.");
+                    return;
                 }
             }
         }
 
         if (gameStreams.length > 0) {
-            // Remove duplicates across all sources
             const uniqueStreams = [];
             const seenUrls = new Set();
             for (const stream of gameStreams) {
@@ -106,8 +134,7 @@ async function scrapeMatches() {
                 }
             }
 
-            // Check if entry exists
-            let existingEntry = streams.find(s => s.id === game.id);
+            let existingEntry = streams.find(s => s.id === match.id);
             if (existingEntry) {
                 const existingUrls = new Set(existingEntry.m3u8.map(item => item.m3u8));
                 uniqueStreams.forEach(newStream => {
@@ -117,20 +144,21 @@ async function scrapeMatches() {
                 });
             } else {
                 streams.push({
-                    id: game.id,
-                    title: game.title,
+                    id: match.id,
+                    title: match.title,
                     m3u8: uniqueStreams
                 });
             }
-            console.log(`Added ${game.id} with ${uniqueStreams.length} unique streams`);
+            console.log(`Added ${match.id} with ${uniqueStreams.length} unique streams`);
         }
     }
 
-    // Save to streams.json
     fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
     console.log("Saved all streams to streams.json");
 
     await browser.close();
 }
 
-scrapeMatches().then(() => console.log("Scraping completed"));
+scrapeMatches()
+    .then(() => console.log("Scraping completed"))
+    .catch(err => console.error("Scraping failed:", err));
