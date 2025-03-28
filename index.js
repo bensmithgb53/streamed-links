@@ -11,7 +11,7 @@ async function getM3u8(source, id, streamNo, page) {
         if (url.includes('.m3u8')) {
             m3u8Urls.add(url);
         } else if (url.includes('challenges.cloudflare.com')) {
-            console.log("Cloudflare Turnstile detected! Attempting to wait...");
+            console.log("Cloudflare Turnstile detected!");
             throw new Error("Cloudflare block encountered");
         }
     };
@@ -24,10 +24,16 @@ async function getM3u8(source, id, streamNo, page) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
         await page.waitForTimeout(Math.random() * 2000 + 1000); // Random 1-3s delay
         await page.mouse.move(Math.random() * 800, Math.random() * 600); // Random mouse movement
-        await page.evaluate(() => window.scrollBy(0, 500)); // Scroll a bit
+        await page.evaluate(() => window.scrollBy(0, Math.random() * 500 + 200)); // Random scroll
 
-        // Wait for network to settle
-        await page.waitForNetworkIdle({ idleTime: 5000, timeout: 30000 });
+        // Check for CAPTCHA and wait briefly
+        const captchaPresent = await page.evaluate(() => !!document.querySelector('iframe[src*="challenges.cloudflare.com"]'));
+        if (captchaPresent) {
+            console.log("CAPTCHA iframe detected. If headless=false, solve it manually within 30s...");
+            await page.waitForTimeout(30000); // Give time for manual solving if non-headless
+        }
+
+        await page.waitForNetworkIdle({ idleTime: 5000, timeout: 30000 }); // Wait for stream URLs
     } catch (error) {
         console.error(`Navigation failed: ${error.message}`);
         throw error;
@@ -59,12 +65,14 @@ async function fetchMatches(page) {
 
 async function scrapeMatches(source, id, streamNo) {
     const browser = await puppeteer.launch({
-        headless: true, // Set to false for debugging if needed
+        headless: true, // Change to false for manual CAPTCHA solving
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-blink-features=AutomationControlled',
-            '--window-size=1920,1080'
+            '--window-size=1920,1080',
+            '--disable-web-security', // Might help with CORS
+            '--disable-features=IsolateOrigins,site-per-process' // Reduce isolation
         ]
     });
     const page = await browser.newPage();
@@ -74,16 +82,20 @@ async function scrapeMatches(source, id, streamNo) {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
         Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
         Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] }); // Fake plugins
         window.navigator.chrome = { runtime: {} };
         Object.defineProperty(window, 'outerWidth', { get: () => 1920 });
         Object.defineProperty(window, 'outerHeight', { get: () => 1080 });
+        Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
+        Object.defineProperty(screen, 'availHeight', { get: () => 1080 });
     });
 
     await page.setExtraHTTPHeaders({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
         "Referer": "https://streamed.su/",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5"
+        "Accept-Language": "en-US,en;q=0.5",
+        "Connection": "keep-alive"
     });
 
     // Fetch matches if no specific ID provided
@@ -111,7 +123,7 @@ async function scrapeMatches(source, id, streamNo) {
 
     for (const match of matches) {
         let gameStreams = [];
-        const matchSources = id ? [source] : match.sources.map(s => s.source); // Use CLI source or API sources
+        const matchSources = id ? [source] : match.sources.map(s => s.source);
         for (const src of matchSources) {
             for (let num = id ? streamNo : 1; num <= (id ? streamNo : 3); num++) {
                 try {
