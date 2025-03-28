@@ -11,7 +11,7 @@ async function getM3u8(source, id, streamNo, page) {
         if (url.includes('.m3u8')) {
             m3u8Urls.add(url);
         } else if (url.includes('challenges.cloudflare.com')) {
-            console.log("Cloudflare challenge detected!");
+            console.log("Cloudflare Turnstile detected! Attempting to wait...");
             throw new Error("Cloudflare block encountered");
         }
     };
@@ -20,7 +20,14 @@ async function getM3u8(source, id, streamNo, page) {
     const url = `https://streamed.su/watch/${id}/${source}/${streamNo}`;
     console.log("Navigating to:", url);
     try {
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+        // Simulate human-like navigation
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(Math.random() * 2000 + 1000); // Random 1-3s delay
+        await page.mouse.move(Math.random() * 800, Math.random() * 600); // Random mouse movement
+        await page.evaluate(() => window.scrollBy(0, 500)); // Scroll a bit
+
+        // Wait for network to settle
+        await page.waitForNetworkIdle({ idleTime: 5000, timeout: 30000 });
     } catch (error) {
         console.error(`Navigation failed: ${error.message}`);
         throw error;
@@ -29,9 +36,7 @@ async function getM3u8(source, id, streamNo, page) {
     const title = await page.evaluate(() => document.title || "Unknown");
     console.log("Title extracted:", title);
 
-    await new Promise(resolve => setTimeout(resolve, 10000)); // 10s wait
     page.off("response", responseHandler);
-
     return { title, m3u8Urls: Array.from(m3u8Urls) };
 }
 
@@ -52,9 +57,9 @@ async function fetchMatches(page) {
     }
 }
 
-async function scrapeMatches() {
+async function scrapeMatches(source, id, streamNo) {
     const browser = await puppeteer.launch({
-        headless: true,
+        headless: true, // Set to false for debugging if needed
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -64,11 +69,14 @@ async function scrapeMatches() {
     });
     const page = await browser.newPage();
 
-    // Enhance stealth
+    // Enhanced stealth
     await page.evaluateOnNewDocument(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        window.navigator.chrome = { runtime: {} };
         Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+        Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+        window.navigator.chrome = { runtime: {} };
+        Object.defineProperty(window, 'outerWidth', { get: () => 1920 });
+        Object.defineProperty(window, 'outerHeight', { get: () => 1080 });
     });
 
     await page.setExtraHTTPHeaders({
@@ -78,14 +86,18 @@ async function scrapeMatches() {
         "Accept-Language": "en-US,en;q=0.5"
     });
 
-    // Fetch all matches
-    let matches;
-    try {
-        matches = await fetchMatches(page);
-    } catch (error) {
-        await browser.close();
-        console.log("Script terminated due to API access failure.");
-        return;
+    // Fetch matches if no specific ID provided
+    let matches = [];
+    if (!id) {
+        try {
+            matches = await fetchMatches(page);
+        } catch (error) {
+            await browser.close();
+            console.log("Script terminated due to API access failure.");
+            return;
+        }
+    } else {
+        matches = [{ id, sources: [{ source }] }]; // Single match mode
     }
 
     // Headers for m3u8 scraping
@@ -95,19 +107,18 @@ async function scrapeMatches() {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
     });
 
-    const maxStreamNo = 3;
     let streams = fs.existsSync('streams.json') ? JSON.parse(fs.readFileSync('streams.json', 'utf8')) : [];
 
     for (const match of matches) {
         let gameStreams = [];
-        const matchSources = match.sources.map(s => s.source); // Use API-provided sources
-        for (const source of matchSources) {
-            for (let streamNo = 1; streamNo <= maxStreamNo; streamNo++) {
+        const matchSources = id ? [source] : match.sources.map(s => s.source); // Use CLI source or API sources
+        for (const src of matchSources) {
+            for (let num = id ? streamNo : 1; num <= (id ? streamNo : 3); num++) {
                 try {
-                    const { title, m3u8Urls } = await getM3u8(source, match.id, streamNo, page);
+                    const { title, m3u8Urls } = await getM3u8(src, match.id, num, page);
                     if (m3u8Urls.length > 0) {
                         gameStreams.push(...m3u8Urls.map(url => ({
-                            source,
+                            source: src,
                             m3u8: url,
                             headers: {
                                 "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
@@ -116,7 +127,7 @@ async function scrapeMatches() {
                         })));
                     }
                 } catch (error) {
-                    console.error(`Failed for ${match.id}/${source}/${streamNo}: ${error.message}`);
+                    console.error(`Failed for ${match.id}/${src}/${num}: ${error.message}`);
                     await browser.close();
                     console.log("Script terminated due to access failure.");
                     return;
@@ -145,7 +156,7 @@ async function scrapeMatches() {
             } else {
                 streams.push({
                     id: match.id,
-                    title: match.title,
+                    title: match.title || `Stream ${match.id}`,
                     m3u8: uniqueStreams
                 });
             }
@@ -159,6 +170,7 @@ async function scrapeMatches() {
     await browser.close();
 }
 
-scrapeMatches()
+const [source, id, streamNo] = process.argv.slice(2);
+scrapeMatches(source, id, parseInt(streamNo))
     .then(() => console.log("Scraping completed"))
     .catch(err => console.error("Scraping failed:", err));
