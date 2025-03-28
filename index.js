@@ -26,8 +26,8 @@ async function getM3u8(source, id, streamNo, page) {
     console.log("Waiting for network responses...");
     await new Promise(resolve => setTimeout(resolve, 20000)); // 20s wait
 
-    // Remove the listener to prevent carryover to the next call
-    page.removeListener("response", responseHandler);
+    // Remove the listener using page.off instead of page.removeListener
+    page.off("response", responseHandler);
 
     console.log("Final m3u8Urls value:", m3u8Urls.size > 0 ? Array.from(m3u8Urls) : "Not found");
     return { title, m3u8Urls: Array.from(m3u8Urls) };
