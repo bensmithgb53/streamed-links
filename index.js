@@ -110,7 +110,7 @@ async function scrapeMatches(source, id, streamNo) {
     const match = { id, sources: [{ source }] };
     let gameStreams = [];
     try {
-        const { title, m3u8Urls } = await getM3u8(source, match  await page.waitForTimeout(Math.random() * 2000 + 1000); // Random delay
+        const { title, m3u8Urls } = await getM3u8(source, match.id, streamNo, page);
         if (m3u8Urls.length > 0) {
             gameStreams.push(...m3u8Urls.map(url => ({
                 source,
