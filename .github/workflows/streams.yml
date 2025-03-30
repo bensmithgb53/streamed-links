@@ -1,34 +1,26 @@
-name: Scrape m3u8 URLs
+name: Scrape Streamed Links
 
 on:
   push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v4
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '16'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run scraper
+          node-version: '20'
+      - name: Install Playwright
+        run: npm install playwright
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run script
         run: node index.js alpha sky-sports-darts 1
-
-      - name: Commit changes
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add package-lock.json streams.json
-          git commit -m "Update package-lock.json and streams.json with new m3u8 URLs" || echo "No changes to commit"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload streams.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: streams-json
+          path: streams.json
