@@ -1,7 +1,15 @@
 const puppeteer = require('puppeteer-extra');
+const RecaptchaPlugin = require('puppeteer-extra-plugin-recaptcha');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
+
+// Apply plugins
 puppeteer.use(StealthPlugin());
+puppeteer.use(
+  RecaptchaPlugin({
+    provider: { id: '2captcha', token: 'YOUR_2CAPTCHA_API_KEY_HERE' } // Replace with your real 2Captcha token
+  })
+);
 
 async function getM3u8(source, id, streamNo, page) {
     let m3u8Urls = new Set();
@@ -11,8 +19,7 @@ async function getM3u8(source, id, streamNo, page) {
         if (url.includes('.m3u8')) {
             m3u8Urls.add(url);
         } else if (url.includes('challenges.cloudflare.com')) {
-            console.log("Cloudflare Turnstile detected!");
-            throw new Error("Cloudflare block encountered");
+            console.log("Cloudflare Turnstile detected! Attempting to solve...");
         }
     };
     page.on("response", responseHandler);
@@ -20,20 +27,25 @@ async function getM3u8(source, id, streamNo, page) {
     const url = `https://streamed.su/watch/${id}/${source}/${streamNo}`;
     console.log("Navigating to:", url);
     try {
-        // Simulate human-like navigation
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await page.waitForTimeout(Math.random() * 2000 + 1000); // Random 1-3s delay
-        await page.mouse.move(Math.random() * 800, Math.random() * 600); // Random mouse movement
-        await page.evaluate(() => window.scrollBy(0, Math.random() * 500 + 200)); // Random scroll
+        await page.waitForTimeout(Math.random() * 3000 + 2000); // Random 2-5s delay
 
-        // Check for CAPTCHA and wait briefly
-        const captchaPresent = await page.evaluate(() => !!document.querySelector('iframe[src*="challenges.cloudflare.com"]'));
-        if (captchaPresent) {
-            console.log("CAPTCHA iframe detected. If headless=false, solve it manually within 30s...");
-            await page.waitForTimeout(30000); // Give time for manual solving if non-headless
+        // Check for Turnstile and solve
+        const turnstilePresent = await page.evaluate(() => !!document.querySelector('iframe[src*="challenges.cloudflare.com"]'));
+        if (turnstilePresent) {
+            console.log("Solving Turnstile CAPTCHA...");
+            const { captchas, solutions, solved, error } = await page.solveRecaptchas();
+            if (solved && solved.length > 0) {
+                console.log("✔️ Turnstile solved successfully");
+            } else {
+                throw new Error(`Failed to solve Turnstile: ${error || 'Unknown error'}`);
+            }
+            await page.waitForTimeout(5000); // Wait for page to update after solving
         }
 
-        await page.waitForNetworkIdle({ idleTime: 5000, timeout: 30000 }); // Wait for stream URLs
+        await page.mouse.move(Math.random() * 800, Math.random() * 600); // Fake mouse
+        await page.evaluate(() => window.scrollBy(0, Math.random() * 500 + 200)); // Random scroll
+        await page.waitForNetworkIdle({ idleTime: 5000, timeout: 30000 });
     } catch (error) {
         console.error(`Navigation failed: ${error.message}`);
         throw error;
@@ -46,48 +58,27 @@ async function getM3u8(source, id, streamNo, page) {
     return { title, m3u8Urls: Array.from(m3u8Urls) };
 }
 
-async function fetchMatches(page) {
-    console.log("Fetching matches from API...");
-    try {
-        await page.goto('https://streamed.su/api/matches/all', { waitUntil: 'networkidle0', timeout: 60000 });
-        const content = await page.content();
-        if (content.includes('challenges.cloudflare.com')) {
-            throw new Error("Cloudflare blocked API access");
-        }
-        const matches = await page.evaluate(() => JSON.parse(document.body.textContent));
-        console.log("Found matches:", matches.length);
-        return matches;
-    } catch (error) {
-        console.error(`API fetch failed: ${error.message}`);
-        throw error;
-    }
-}
-
 async function scrapeMatches(source, id, streamNo) {
     const browser = await puppeteer.launch({
-        headless: true, // Change to false for manual CAPTCHA solving
+        headless: true, // For GitHub Actions
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-blink-features=AutomationControlled',
             '--window-size=1920,1080',
-            '--disable-web-security', // Might help with CORS
-            '--disable-features=IsolateOrigins,site-per-process' // Reduce isolation
+            '--disable-web-security',
+            '--disable-features=IsolateOrigins,site-per-process'
         ]
     });
     const page = await browser.newPage();
 
-    // Enhanced stealth
+    // Stealth tweaks
     await page.evaluateOnNewDocument(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
         Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
         Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] }); // Fake plugins
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
         window.navigator.chrome = { runtime: {} };
-        Object.defineProperty(window, 'outerWidth', { get: () => 1920 });
-        Object.defineProperty(window, 'outerHeight', { get: () => 1080 });
-        Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
-        Object.defineProperty(screen, 'availHeight', { get: () => 1080 });
     });
 
     await page.setExtraHTTPHeaders({
@@ -98,82 +89,61 @@ async function scrapeMatches(source, id, streamNo) {
         "Connection": "keep-alive"
     });
 
-    // Fetch matches if no specific ID provided
-    let matches = [];
-    if (!id) {
-        try {
-            matches = await fetchMatches(page);
-        } catch (error) {
-            await browser.close();
-            console.log("Script terminated due to API access failure.");
-            return;
-        }
-    } else {
-        matches = [{ id, sources: [{ source }] }]; // Single match mode
-    }
-
     // Headers for m3u8 scraping
     await page.setExtraHTTPHeaders({
         "Referer": "https://embedme.top/",
-        "Origin": "https://embedme.top",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+        "Origin": "https://embedme.top"
     });
 
     let streams = fs.existsSync('streams.json') ? JSON.parse(fs.readFileSync('streams.json', 'utf8')) : [];
 
-    for (const match of matches) {
-        let gameStreams = [];
-        const matchSources = id ? [source] : match.sources.map(s => s.source);
-        for (const src of matchSources) {
-            for (let num = id ? streamNo : 1; num <= (id ? streamNo : 3); num++) {
-                try {
-                    const { title, m3u8Urls } = await getM3u8(src, match.id, num, page);
-                    if (m3u8Urls.length > 0) {
-                        gameStreams.push(...m3u8Urls.map(url => ({
-                            source: src,
-                            m3u8: url,
-                            headers: {
-                                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
-                                "Referer": "https://embedme.top/"
-                            }
-                        })));
-                    }
-                } catch (error) {
-                    console.error(`Failed for ${match.id}/${src}/${num}: ${error.message}`);
-                    await browser.close();
-                    console.log("Script terminated due to access failure.");
-                    return;
+    const match = { id, sources: [{ source }] };
+    let gameStreams = [];
+    try {
+        const { title, m3u8Urls } = await getM3u8(source, match.id, streamNo, page);
+        if (m3u8Urls.length > 0) {
+            gameStreams.push(...m3u8Urls.map(url => ({
+                source,
+                m3u8: url,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
+                    "Referer": "https://embedme.top/"
                 }
+            })));
+        }
+    } catch (error) {
+        console.error(`Failed for ${match.id}/${source}/${streamNo}: ${error.message}`);
+        await browser.close();
+        console.log("Script terminated due to access failure.");
+        return;
+    }
+
+    if (gameStreams.length > 0) {
+        const uniqueStreams = [];
+        const seenUrls = new Set();
+        for (const stream of gameStreams) {
+            if (!seenUrls.has(stream.m3u8)) {
+                seenUrls.add(stream.m3u8);
+                uniqueStreams.push(stream);
             }
         }
 
-        if (gameStreams.length > 0) {
-            const uniqueStreams = [];
-            const seenUrls = new Set();
-            for (const stream of gameStreams) {
-                if (!seenUrls.has(stream.m3u8)) {
-                    seenUrls.add(stream.m3u8);
-                    uniqueStreams.push(stream);
+        let existingEntry = streams.find(s => s.id === match.id);
+        if (existingEntry) {
+            const existingUrls = new Set(existingEntry.m3u8.map(item => item.m3u8));
+            uniqueStreams.forEach(newStream => {
+                if (!existingUrls.has(newStream.m3u8)) {
+                    existingEntry.m3u8.push(newStream);
                 }
-            }
-
-            let existingEntry = streams.find(s => s.id === match.id);
-            if (existingEntry) {
-                const existingUrls = new Set(existingEntry.m3u8.map(item => item.m3u8));
-                uniqueStreams.forEach(newStream => {
-                    if (!existingUrls.has(newStream.m3u8)) {
-                        existingEntry.m3u8.push(newStream);
-                    }
-                });
-            } else {
-                streams.push({
-                    id: match.id,
-                    title: match.title || `Stream ${match.id}`,
-                    m3u8: uniqueStreams
-                });
-            }
-            console.log(`Added ${match.id} with ${uniqueStreams.length} unique streams`);
+            });
+        } else {
+            streams.push({
+                id: match.id,
+                title: match.title || `Stream ${match.id}`,
+                m3u8: uniqueStreams
+            });
         }
+        console.log(`Added ${match.id} with ${uniqueStreams.length} unique streams`);
     }
 
     fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
@@ -183,6 +153,11 @@ async function scrapeMatches(source, id, streamNo) {
 }
 
 const [source, id, streamNo] = process.argv.slice(2);
+if (!source || !id || !streamNo) {
+    console.error("Please provide source, id, and streamNo: node index.js alpha sky-sports-darts 1");
+    process.exit(1);
+}
+
 scrapeMatches(source, id, parseInt(streamNo))
     .then(() => console.log("Scraping completed"))
     .catch(err => console.error("Scraping failed:", err));
