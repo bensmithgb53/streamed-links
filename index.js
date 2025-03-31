@@ -1,4 +1,4 @@
-.const puppeteer = require('puppeteer-extra');
+const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fetch = require('node-fetch'); // Added for API fetching
 const fs = require('fs');
