@@ -50,7 +50,7 @@ async function getM3u8(source, id, streamNo, page, proxy) {
 
     try {
         await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
-        await page.waitForTimeout(10000); // 10s wait like your script
+        await page.waitForTimeout(10000); // 10s wait
         const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
         console.log("Title extracted:", title);
     } catch (error) {
@@ -63,7 +63,6 @@ async function getM3u8(source, id, streamNo, page, proxy) {
 }
 
 async function scrapeSpecificCategories() {
-    let proxy = await getFreeProxy();
     const browserArgs = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -74,9 +73,6 @@ async function scrapeSpecificCategories() {
         '--no-zygote',
         '--single-process'
     ];
-    if (proxy) {
-        browserArgs.push(`--proxy-server=http://${proxy}`);
-    }
 
     const browser = await chromium.launch({ headless: true, args: browserArgs });
     const page = await browser.newPage();
@@ -96,33 +92,46 @@ async function scrapeSpecificCategories() {
 
     for (const categoryUrl of categories) {
         console.log(`Scraping ${categoryUrl}...`);
-        try {
-            await page.goto(categoryUrl, { waitUntil: 'networkidle0', timeout: 60000 });
-            const games = await page.evaluate(() => {
-                const links = Array.from(document.querySelectorAll('a[href*="/watch/"]'));
-                return links.map(link => {
-                    const href = link.getAttribute('href');
-                    const id = href.split('/watch/')[1]?.split('/')[0];
-                    const title = link.textContent.trim() || href.split('/')[2];
-                    return { id, title };
-                }).filter(game => game.id);
-            });
-            allGames = allGames.concat(games);
-            console.log(`Found ${games.length} games in ${categoryUrl}`);
-        } catch (error) {
-            await browser.close();
-            throw new Error(`Category scrape failed for ${categoryUrl}: ${error.message}`);
+        let proxy = null; // Start without proxy
+        let attempts = 0;
+        const maxAttempts = 2; // One retry with proxy
+
+        while (attempts < maxAttempts) {
+            try {
+                await page.goto(categoryUrl, { waitUntil: 'networkidle0', timeout: 60000 });
+                const games = await page.evaluate(() => {
+                    const links = Array.from(document.querySelectorAll('a[href*="/watch/"]'));
+                    return links.map(link => {
+                        const href = link.getAttribute('href');
+                        const id = href.split('/watch/')[1]?.split('/')[0];
+                        const title = link.textContent.trim() || href.split('/')[2];
+                        return { id, title };
+                    }).filter(game => game.id);
+                });
+                allGames = allGames.concat(games);
+                console.log(`Found ${games.length} games in ${categoryUrl}`);
+                break; // Success, move to next category
+            } catch (error) {
+                console.error(`Attempt ${attempts + 1} failed for ${categoryUrl} with proxy ${proxy || 'none'}: ${error.message}`);
+                attempts++;
+                if (attempts === maxAttempts) {
+                    await browser.close();
+                    throw new Error(`Category scrape failed for ${categoryUrl} after ${maxAttempts} attempts`);
+                }
+                proxy = await getFreeProxy(); // Retry with proxy
+            }
         }
     }
     console.log("Total games:", allGames.length);
 
     const sources = ['alpha', 'bravo', 'charlie'];
     let streams = [];
+    let proxy = null; // Start without proxy for streams
 
     for (const game of allGames) {
         for (const source of sources) {
             let attempts = 0;
-            const maxAttempts = 2; // One retry with new proxy
+            const maxAttempts = 2; // One retry with proxy
             while (attempts < maxAttempts) {
                 try {
                     const { title, m3u8Urls } = await getM3u8(source, game.id, 1, page, proxy);
@@ -149,7 +158,7 @@ async function scrapeSpecificCategories() {
                         await browser.close();
                         throw new Error(`Failed after ${maxAttempts} attempts for ${game.id}/${source}/1`);
                     }
-                    proxy = await getFreeProxy(); // Try a new proxy
+                    proxy = await getFreeProxy(); // Retry with proxy
                 }
             }
         }
