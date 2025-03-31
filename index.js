@@ -18,52 +18,83 @@ async function getFreeProxy() {
 
 async function getM3u8(source, id, streamNo, page, proxy) {
     let m3u8Urls = new Set();
+
+    // Monitor main page responses
     page.on('response', async (response) => {
         const url = response.url();
-        console.log("Network:", url);
-        if (url.includes('.m3u8')) {
+        console.log("Main Network:", url);
+        if (url.includes('.m3u8') || url.includes('rr.vip')) {
             m3u8Urls.add(url);
-            console.log("Found m3u8:", url);
+            console.log("Found m3u8/rr.vip:", url);
         } else if (url.includes('challenges.cloudflare.com')) {
             console.log("Cloudflare Turnstile detected");
         }
     });
 
-    page.on('console', msg => console.log("Console:", msg.text())); // Debug JS errors
+    // Monitor iframe responses
+    page.on('framenavigated', async (frame) => {
+        if (frame.url().includes('embedstreams.top')) {
+            console.log("Iframe detected:", frame.url());
+            frame.on('response', async (response) => {
+                const url = response.url();
+                console.log("Iframe Network:", url);
+                if (url.includes('.m3u8') || url.includes('rr.vip')) {
+                    m3u8Urls.add(url);
+                    console.log("Found iframe m3u8/rr.vip:", url);
+                }
+            });
+        }
+    });
+
+    page.on('console', msg => console.log("Console:", msg.text()));
 
     const url = `https://streamed.su/watch/${id}/${source}/${streamNo}`;
     console.log("Navigating to:", url);
 
     try {
-        await page.waitForTimeout(Math.floor(Math.random() * 3000) + 2000); // 2-5s delay
+        await page.waitForTimeout(Math.floor(Math.random() * 3000) + 2000);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
         const cfChallenge = await page.$('iframe[src*="challenges.cloudflare.com"]');
         if (cfChallenge) {
-            console.log("Cloudflare challenge detected, waiting 15s...");
-            await page.waitForTimeout(15000); // Give Turnstile time to resolve
+            console.log("Cloudflare challenge detected, waiting 20s...");
+            await page.waitForTimeout(20000);
             if (await page.$('iframe[src*="challenges.cloudflare.com"]')) {
-                throw new Error("Cloudflare challenge persists after wait");
+                console.log("Cloudflare persists, proceeding anyway...");
             }
         }
 
-        // Wait for player and interact
-        await page.waitForSelector('video, [id*="player"], [class*="player"], button', { timeout: 20000 });
-        await page.evaluate(() => {
-            const trigger = document.querySelector('video, [id*="player"], [class*="player"], button');
-            if (trigger) {
-                trigger.click();
-                const move = new MouseEvent('mousemove', {
-                    bubbles: true,
-                    clientX: Math.random() * 800,
-                    clientY: Math.random() * 600
-                });
-                document.dispatchEvent(move);
-                // Simulate scroll
-                window.scrollTo(0, Math.random() * 200);
-            }
+        // Debug player and iframe state
+        const playerState = await page.evaluate(() => {
+            const video = document.querySelector('video');
+            const player = document.querySelector('[id*="player"], [class*="player"]');
+            const iframe = document.querySelector('iframe[src*="embedstreams"]');
+            return {
+                video: !!video,
+                player: !!player,
+                videoSrc: video?.src || 'none',
+                iframeSrc: iframe?.src || 'none',
+                buttons: Array.from(document.querySelectorAll('button')).map(b => b.textContent.trim()).filter(Boolean)
+            };
         });
-        await page.waitForTimeout(30000); // 30s for stream to load
+        console.log("Player state:", JSON.stringify(playerState));
+
+        // Interact with player
+        await page.evaluate(() => {
+            const triggers = document.querySelectorAll('video, [id*="player"], [class*="player"], button, iframe');
+            triggers.forEach((trigger, index) => {
+                setTimeout(() => {
+                    trigger.click();
+                    const move = new MouseEvent('mousemove', { bubbles: true, clientX: 400 + index * 10, clientY: 300 + index * 10 });
+                    document.dispatchEvent(move);
+                }, index * 1000); // Stagger clicks
+            });
+            window.scrollTo(0, 500);
+        });
+        await page.waitForTimeout(60000); // 60s for stream
+
+        // Final check
+        console.log("Final m3u8/rr.vip count:", m3u8Urls.size);
 
         const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
         console.log("Title:", title);
@@ -78,7 +109,7 @@ async function scrapeSpecificCategories() {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-blink-features=AutomationControlled',
-        '--disable-web-security', // Bypass some checks
+        '--disable-web-security',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--window-size=1920,1080',
@@ -94,8 +125,10 @@ async function scrapeSpecificCategories() {
 
     await context.addInitScript(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        window.chrome = { runtime: {} };
-        // Spoof WebGL
+        Object.defineProperty(navigator, 'userAgent', {
+            get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+        });
+        window.chrome = { runtime: {}, app: {}, webstore: {} };
         const getParameter = WebGLRenderingContext.prototype.getParameter;
         WebGLRenderingContext.prototype.getParameter = function(parameter) {
             if (parameter === 37445) return 'Intel';
@@ -138,7 +171,10 @@ async function scrapeSpecificCategories() {
                     const newContext = await browser.newContext({ proxy: { server: `http://${proxy}` } });
                     await newContext.addInitScript(() => {
                         Object.defineProperty(navigator, 'webdriver', { get: () => false });
-                        window.chrome = { runtime: {} };
+                        Object.defineProperty(navigator, 'userAgent', {
+                            get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+                        });
+                        window.chrome = { runtime: {}, app: {}, webstore: {} };
                         const getParameter = WebGLRenderingContext.prototype.getParameter;
                         WebGLRenderingContext.prototype.getParameter = function(parameter) {
                             if (parameter === 37445) return 'Intel';
@@ -187,7 +223,10 @@ async function scrapeSpecificCategories() {
                         const newContext = await browser.newContext({ proxy: { server: `http://${proxy}` } });
                         await newContext.addInitScript(() => {
                             Object.defineProperty(navigator, 'webdriver', { get: () => false });
-                            window.chrome = { runtime: {} };
+                            Object.defineProperty(navigator, 'userAgent', {
+                                get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+                            });
+                            window.chrome = { runtime: {}, app: {}, webstore: {} };
                             const getParameter = WebGLRenderingContext.prototype.getParameter;
                             WebGLRenderingContext.prototype.getParameter = function(parameter) {
                                 if (parameter === 37445) return 'Intel';
@@ -215,7 +254,7 @@ async function scrapeSpecificCategories() {
                         });
                         console.log(`Added ${game.id} (${source}) with ${m3u8Urls.length} streams`);
                     }
-                    await page.waitForTimeout(7000); // 7s between requests
+                    await page.waitForTimeout(7000);
                     break;
                 } catch (error) {
                     console.error(`Attempt ${attempts + 1} failed for ${game.id}/${source}: ${error.message}`);
