@@ -14,11 +14,9 @@ jobs:
         with:
           node-version: '20'
       - name: Install dependencies
-        run: npm install playwright node-fetch
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npm install node-fetch https-proxy-agent
       - name: Run script
-        run: node index.js  # No args needed
+        run: node index.js
       - name: Upload streams.json
         uses: actions/upload-artifact@v4
         with:
