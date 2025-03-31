@@ -10,10 +10,27 @@ async function getFreeProxy() {
         if (proxies.length === 0) throw new Error("No proxies available");
         const randomProxy = proxies[Math.floor(Math.random() * proxies.length)];
         console.log("Using proxy:", randomProxy);
-        return randomProxy; // Format: "ip:port"
+        return randomProxy;
     } catch (error) {
         console.error("Failed to fetch proxy:", error.message);
-        return null; // Fallback to no proxy if fetch fails
+        return null;
+    }
+}
+
+async function fetchMatches(page) {
+    console.log("Fetching matches from API...");
+    try {
+        await page.goto('https://streamed.su/api/matches/all', { waitUntil: 'networkidle', timeout: 60000 });
+        const content = await page.content();
+        if (content.includes('challenges.cloudflare.com')) {
+            throw new Error("Cloudflare blocked API access");
+        }
+        const matches = await page.evaluate(() => JSON.parse(document.body.textContent));
+        console.log("Found matches:", matches.length);
+        return matches;
+    } catch (error) {
+        console.error(`API fetch failed: ${error.message}`);
+        throw error;
     }
 }
 
@@ -34,12 +51,12 @@ async function getM3u8(source, id, streamNo, page) {
     console.log("Navigating to:", url);
     try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await page.waitForTimeout(Math.random() * 5000 + 3000); // Random 3-8s delay
-        await page.mouse.move(Math.random() * 800, Math.random() * 600); // Fake mouse
-        await page.mouse.click(Math.random() * 800, Math.random() * 600); // Fake click
-        await page.evaluate(() => window.scrollBy(0, Math.random() * 500 + 200)); // Random scroll
-        await page.keyboard.press('Tab'); // Fake keyboard
-        await page.waitForTimeout(Math.random() * 2000 + 1000); // Additional delay
+        await page.waitForTimeout(Math.random() * 5000 + 3000);
+        await page.mouse.move(Math.random() * 800, Math.random() * 600);
+        await page.mouse.click(Math.random() * 800, Math.random() * 600);
+        await page.evaluate(() => window.scrollBy(0, Math.random() * 500 + 200));
+        await page.keyboard.press('Tab');
+        await page.waitForTimeout(Math.random() * 2000 + 1000);
         await page.waitForLoadState('networkidle', { timeout: 30000 });
     } catch (error) {
         console.error(`Navigation failed: ${error.message}`);
@@ -52,10 +69,11 @@ async function getM3u8(source, id, streamNo, page) {
     return { title, m3u8Urls: Array.from(m3u8Urls) };
 }
 
-async function scrapeMatches(source, id, streamNo) {
+async function scrapeMatches() {
     let proxy = await getFreeProxy();
     let attempts = 0;
-    const maxAttempts = 5; // Try up to 5 proxies
+    const maxAttempts = 5;
+    const sportsFilter = ['football', 'darts', 'other', 'fighting'];
 
     while (attempts < maxAttempts) {
         const browserArgs = [
@@ -97,7 +115,6 @@ async function scrapeMatches(source, id, streamNo) {
 
         const page = await context.newPage();
 
-        // Aggressive stealth with Playwright’s method
         await page.addInitScript(() => {
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
             Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
@@ -124,66 +141,84 @@ async function scrapeMatches(source, id, streamNo) {
             });
         });
 
-        // Headers for m3u8 scraping
         await context.setExtraHTTPHeaders({
             "Referer": "https://embedme.top/",
             "Origin": "https://embedme.top"
         });
 
         let streams = fs.existsSync('streams.json') ? JSON.parse(fs.readFileSync('streams.json', 'utf8')) : [];
-        const match = { id, sources: [{ source }] };
-        let gameStreams = [];
 
         try {
-            const { title, m3u8Urls } = await getM3u8(source, match.id, streamNo, page);
-            if (m3u8Urls.length > 0) {
-                gameStreams.push(...m3u8Urls.map(url => ({
-                    source,
-                    m3u8: url,
-                    headers: {
-                        "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
-                        "Referer": "https://embedme.top/"
-                    }
-                })));
-            }
-            // Success: Save and exit
-            if (gameStreams.length > 0) {
-                const uniqueStreams = [];
-                const seenUrls = new Set();
-                for (const stream of gameStreams) {
-                    if (!seenUrls.has(stream.m3u8)) {
-                        seenUrls.add(stream.m3u8);
-                        uniqueStreams.push(stream);
+            const matches = await fetchMatches(page);
+            const filteredMatches = matches.filter(match => {
+                const sport = match.title?.toLowerCase() || '';
+                return sportsFilter.some(category => sport.includes(category));
+            });
+            console.log(`Filtered ${filteredMatches.length} matches for football, darts, other, fighting`);
+
+            for (const match of filteredMatches) {
+                let gameStreams = [];
+                const matchSources = match.sources.map(s => s.source);
+
+                for (const src of matchSources) {
+                    for (let num = 1; num <= 3; num++) {
+                        try {
+                            const { title, m3u8Urls } = await getM3u8(src, match.id, num, page);
+                            if (m3u8Urls.length > 0) {
+                                gameStreams.push(...m3u8Urls.map(url => ({
+                                    source: src,
+                                    m3u8: url,
+                                    headers: {
+                                        "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
+                                        "Referer": "https://embedme.top/"
+                                    }
+                                })));
+                            }
+                        } catch (error) {
+                            console.error(`Failed for ${match.id}/${src}/${num}: ${error.message}`);
+                            throw error; // Retry with next proxy
+                        }
                     }
                 }
 
-                let existingEntry = streams.find(s => s.id === match.id);
-                if (existingEntry) {
-                    const existingUrls = new Set(existingEntry.m3u8.map(item => item.m3u8));
-                    uniqueStreams.forEach(newStream => {
-                        if (!existingUrls.has(newStream.m3u8)) {
-                            existingEntry.m3u8.push(newStream);
+                if (gameStreams.length > 0) {
+                    const uniqueStreams = [];
+                    const seenUrls = new Set();
+                    for (const stream of gameStreams) {
+                        if (!seenUrls.has(stream.m3u8)) {
+                            seenUrls.add(stream.m3u8);
+                            uniqueStreams.push(stream);
                         }
-                    });
-                } else {
-                    streams.push({
-                        id: match.id,
-                        title: match.title || `Stream ${match.id}`,
-                        m3u8: uniqueStreams
-                    });
+                    }
+
+                    let existingEntry = streams.find(s => s.id === match.id);
+                    if (existingEntry) {
+                        const existingUrls = new Set(existingEntry.m3u8.map(item => item.m3u8));
+                        uniqueStreams.forEach(newStream => {
+                            if (!existingUrls.has(newStream.m3u8)) {
+                                existingEntry.m3u8.push(newStream);
+                            }
+                        });
+                    } else {
+                        streams.push({
+                            id: match.id,
+                            title: match.title || `Stream ${match.id}`,
+                            m3u8: uniqueStreams
+                        });
+                    }
+                    console.log(`Added ${match.id} with ${uniqueStreams.length} unique streams`);
                 }
-                console.log(`Added ${match.id} with ${uniqueStreams.length} unique streams`);
             }
 
             fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
             console.log("Saved all streams to streams.json");
             await browser.close();
-            return; // Exit on success
+            return;
         } catch (error) {
             console.error(`Attempt ${attempts + 1} failed with proxy ${proxy || 'none'}: ${error.message}`);
             await browser.close();
             attempts++;
-            proxy = attempts < maxAttempts ? await getFreeProxy() : null; // Try next proxy
+            proxy = attempts < maxAttempts ? await getFreeProxy() : null;
             if (!proxy) {
                 console.log("No more proxies available. Terminating.");
                 return;
@@ -193,12 +228,6 @@ async function scrapeMatches(source, id, streamNo) {
     console.log("All proxy attempts failed.");
 }
 
-const [source, id, streamNo] = process.argv.slice(2);
-if (!source || !id || !streamNo) {
-    console.error("Please provide source, id, and streamNo: node index.js alpha sky-sports-darts 1");
-    process.exit(1);
-}
-
-scrapeMatches(source, id, parseInt(streamNo))
+scrapeMatches()
     .then(() => console.log("Scraping completed"))
     .catch(err => console.error("Scraping failed:", err));
