@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const fetch = require('node-fetch'); // Added for API fetching
+const fetch = require('node-fetch'); // Ensure this is present
 const fs = require('fs');
 puppeteer.use(StealthPlugin());
 
@@ -29,7 +29,6 @@ async function getM3u8(source, id, streamNo, page) {
     console.log("Navigating to:", url);
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 0 });
 
-    // Fallback to embedstreams.top if no m3u8 found yet
     if (m3u8Urls.length === 0) {
         const fallbackUrl = `https://embedstreams.top/embed/${source}/${id}/${streamNo}`;
         console.log("No m3u8 found, trying fallback:", fallbackUrl);
@@ -69,7 +68,6 @@ async function scrapeFromApi() {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
     });
 
-    // Automatically fetch API data from streamed.su/api/matches/all
     console.log("Fetching API data from https://streamed.su/api/matches/all...");
     let apiData;
     try {
@@ -87,7 +85,7 @@ async function scrapeFromApi() {
     } catch (error) {
         console.error("Failed to fetch API data:", error.message);
         await browser.close();
-        return; // Exit if API fetch fails
+        return;
     }
 
     let streams = [];
