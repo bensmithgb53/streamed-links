@@ -1,6 +1,6 @@
+const { chromium } = require('playwright');
 const fetch = require('node-fetch');
 const { HttpsProxyAgent } = require('https-proxy-agent');
-const { chromium } = require('playwright');
 const fs = require('fs');
 
 async function getFreeProxy() {
@@ -18,42 +18,57 @@ async function getFreeProxy() {
     }
 }
 
-async function fetchMatches(proxy) {
-    const url = 'https://streamed.su/api/matches/all';
-    console.log("Fetching matches from API with proxy:", proxy || 'none');
-    const options = {
-        headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-            "Referer": "https://streamed.su/",
-            "Accept": "application/json",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Connection": "keep-alive"
+async function getM3u8(source, id, streamNo, page, proxy) {
+    let m3u8Urls = new Set();
+    page.on('response', async (response) => {
+        const url = response.url();
+        console.log("Network response:", url);
+        if (url.includes('.m3u8')) {
+            m3u8Urls.add(url);
+            console.log("Found m3u8:", url);
+        } else if (url.includes('challenges.cloudflare.com')) {
+            throw new Error("Cloudflare block encountered");
         }
-    };
-    if (proxy) {
-        options.agent = new HttpsProxyAgent(`http://${proxy}`);
-    }
+    });
 
-    const response = await fetch(url, options);
-    if (!response.ok) throw new Error(`API fetch failed: ${response.statusText}`);
-    const text = await response.text();
-    if (text.includes('challenges.cloudflare.com')) throw new Error("Cloudflare blocked API access");
-    const matches = JSON.parse(text);
-    console.log("Found matches:", matches.length);
-    return matches;
-}
-
-async function getM3u8FromNetwork(source, id, streamNo, proxy) {
-    const url = `https://embedstreams.top/embed/${source}/${id}/${streamNo}`;
-    console.log("Capturing network requests for:", url);
+    const url = `https://streamed.su/watch/${id}/${source}/${streamNo}`;
+    console.log("Navigating to:", url);
 
     const browserArgs = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-blink-features=AutomationControlled',
         '--window-size=1920,1080',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-zygote',
+        '--single-process'
+    ];
+    if (proxy) {
+        browserArgs.push(`--proxy-server=http://${proxy}`);
+    }
+
+    try {
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+        await page.waitForTimeout(10000); // 10s wait like your script
+        const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
+        console.log("Title extracted:", title);
+    } catch (error) {
+        throw new Error(`Navigation failed: ${error.message}`);
+    }
+
+    const m3u8Array = Array.from(m3u8Urls);
+    console.log("Final m3u8Urls:", m3u8Array.length > 0 ? m3u8Array : "Not found");
+    return { title, m3u8Urls: m3u8Array };
+}
+
+async function scrapeSpecificCategories() {
+    let proxy = await getFreeProxy();
+    const browserArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--window-size=1920,1080',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--no-zygote',
@@ -64,160 +79,90 @@ async function getM3u8FromNetwork(source, id, streamNo, proxy) {
     }
 
     const browser = await chromium.launch({ headless: true, args: browserArgs });
-    const context = await browser.newContext({
-        viewport: { width: 1920, height: 1080 },
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-        extraHTTPHeaders: {
-            "Referer": "https://streamed.su/",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5"
-        }
-    });
-    const page = await context.newPage();
+    const page = await browser.newPage();
 
-    let m3u8Urls = new Set();
-    page.on('response', async (response) => {
-        const responseUrl = response.url();
-        console.log("Network response:", responseUrl);
-        if (responseUrl.includes('.m3u8')) {
-            m3u8Urls.add(responseUrl);
-        } else if (responseUrl.includes('challenges.cloudflare.com')) {
-            throw new Error("Cloudflare block encountered");
-        }
+    await page.setExtraHTTPHeaders({
+        "Referer": "https://embedme.top/",
+        "Origin": "https://embedme.top",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
     });
 
-    try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-        await page.waitForTimeout(Math.random() * 5000 + 2000); // 2-7s delay to let streams load
-        await page.evaluate(() => window.scrollBy(0, 500)); // Trigger potential lazy loading
-        await page.waitForLoadState('networkidle', { timeout: 30000 }); // Wait for network activity
-    } catch (error) {
-        console.error(`Navigation failed: ${error.message}`);
-        throw error;
-    }
+    const categories = [
+        'https://streamed.su/category/football',
+        'https://streamed.su/category/fight',
+        'https://streamed.su/category/darts'
+    ];
+    let allGames = [];
 
-    await context.close();
-    await browser.close();
-    const m3u8Array = Array.from(m3u8Urls);
-    console.log("Captured m3u8 URLs:", m3u8Array.length > 0 ? m3u8Array : "none");
-    return m3u8Array;
-}
-
-async function scrapeMatches() {
-    const maxAttempts = 5;
-    const sportsFilter = ['football', 'darts', 'other', 'fighting'];
-    let streams = fs.existsSync('streams.json') ? JSON.parse(fs.readFileSync('streams.json', 'utf8')) : [];
-    let proxy = await getFreeProxy();
-
-    // Fetch matches with retries
-    let matches;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    for (const categoryUrl of categories) {
+        console.log(`Scraping ${categoryUrl}...`);
         try {
-            matches = await fetchMatches(proxy);
-            break;
+            await page.goto(categoryUrl, { waitUntil: 'networkidle0', timeout: 60000 });
+            const games = await page.evaluate(() => {
+                const links = Array.from(document.querySelectorAll('a[href*="/watch/"]'));
+                return links.map(link => {
+                    const href = link.getAttribute('href');
+                    const id = href.split('/watch/')[1]?.split('/')[0];
+                    const title = link.textContent.trim() || href.split('/')[2];
+                    return { id, title };
+                }).filter(game => game.id);
+            });
+            allGames = allGames.concat(games);
+            console.log(`Found ${games.length} games in ${categoryUrl}`);
         } catch (error) {
-            console.error(`API attempt ${attempt + 1} failed with proxy ${proxy || 'none'}: ${error.message}`);
-            proxy = attempt + 1 < maxAttempts ? await getFreeProxy() : null;
-            if (!proxy && attempt + 1 === maxAttempts) {
-                console.log("No proxies left, trying without proxy...");
-                matches = await fetchMatches(null);
-                break;
-            }
+            await browser.close();
+            throw new Error(`Category scrape failed for ${categoryUrl}: ${error.message}`);
         }
     }
+    console.log("Total games:", allGames.length);
 
-    if (!matches) {
-        console.log("Failed to fetch matches after all attempts.");
-        return;
-    }
+    const sources = ['alpha', 'bravo', 'charlie'];
+    let streams = [];
 
-    const filteredMatches = matches.filter(match => {
-        const sport = match.title?.toLowerCase() || '';
-        return sportsFilter.some(category => sport.includes(category));
-    });
-    console.log(`Filtered ${filteredMatches.length} matches for football, darts, other, fighting`);
-
-    // Scrape each match
-    for (const match of filteredMatches) {
-        let gameStreams = [];
-        const matchSources = match.sources.map(s => s.source);
-        proxy = await getFreeProxy();
-
-        for (const src of matchSources) {
-            for (let num = 1; num <= 3; num++) {
-                let streamAttempts = 0;
-                let currentProxy = proxy;
-                while (streamAttempts < maxAttempts) {
-                    try {
-                        const m3u8Urls = await getM3u8FromNetwork(src, match.id, num, currentProxy);
-                        if (m3u8Urls.length > 0) {
-                            gameStreams.push(...m3u8Urls.map(url => ({
-                                source: src,
+    for (const game of allGames) {
+        for (const source of sources) {
+            let attempts = 0;
+            const maxAttempts = 2; // One retry with new proxy
+            while (attempts < maxAttempts) {
+                try {
+                    const { title, m3u8Urls } = await getM3u8(source, game.id, 1, page, proxy);
+                    if (m3u8Urls.length > 0) {
+                        streams.push({
+                            id: game.id,
+                            title: game.title,
+                            source: source,
+                            m3u8: m3u8Urls.map(url => ({
                                 m3u8: url,
                                 headers: {
                                     "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
                                     "Referer": "https://embedme.top/"
                                 }
-                            })));
-                        }
-                        break;
-                    } catch (error) {
-                        console.error(`Attempt ${streamAttempts + 1} failed for ${match.id}/${src}/${num} with proxy ${currentProxy || 'none'}: ${error.message}`);
-                        streamAttempts++;
-                        currentProxy = streamAttempts < maxAttempts ? await getFreeProxy() : null;
-                        if (!currentProxy && streamAttempts === maxAttempts) {
-                            console.log(`No proxies left for ${match.id}/${src}/${num}, trying without proxy...`);
-                            const m3u8Urls = await getM3u8FromNetwork(src, match.id, num, null);
-                            if (m3u8Urls.length > 0) {
-                                gameStreams.push(...m3u8Urls.map(url => ({
-                                    source: src,
-                                    m3u8: url,
-                                    headers: {
-                                        "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
-                                        "Referer": "https://embedme.top/"
-                                    }
-                                })));
-                            }
-                            break;
-                        }
+                            }))
+                        });
+                        console.log(`Added ${game.id} (${source}) with ${m3u8Urls.length} streams`);
                     }
+                    break; // Success, move to next source
+                } catch (error) {
+                    console.error(`Attempt ${attempts + 1} failed for ${game.id}/${source}/1 with proxy ${proxy || 'none'}: ${error.message}`);
+                    attempts++;
+                    if (attempts === maxAttempts) {
+                        await browser.close();
+                        throw new Error(`Failed after ${maxAttempts} attempts for ${game.id}/${source}/1`);
+                    }
+                    proxy = await getFreeProxy(); // Try a new proxy
                 }
             }
-        }
-
-        if (gameStreams.length > 0) {
-            const uniqueStreams = [];
-            const seenUrls = new Set();
-            for (const stream of gameStreams) {
-                if (!seenUrls.has(stream.m3u8)) {
-                    seenUrls.add(stream.m3u8);
-                    uniqueStreams.push(stream);
-                }
-            }
-
-            let existingEntry = streams.find(s => s.id === match.id);
-            if (existingEntry) {
-                const existingUrls = new Set(existingEntry.m3u8.map(item => item.m3u8));
-                uniqueStreams.forEach(newStream => {
-                    if (!existingUrls.has(newStream.m3u8)) {
-                        existingEntry.m3u8.push(newStream);
-                    }
-                });
-            } else {
-                streams.push({
-                    id: match.id,
-                    title: match.title || `Stream ${match.id}`,
-                    m3u8: uniqueStreams
-                });
-            }
-            console.log(`Added ${match.id} with ${uniqueStreams.length} unique streams`);
-            fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
         }
     }
 
-    console.log("Saved all streams to streams.json");
+    fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
+    console.log("Wrote streams.json with new data");
+    await browser.close();
 }
 
-scrapeMatches()
+scrapeSpecificCategories()
     .then(() => console.log("Scraping completed"))
-    .catch(err => console.error("Scraping failed:", err));
+    .catch(err => {
+        console.error("Scraping aborted:", err.message);
+        process.exit(1); // Hard stop on error
+    });
