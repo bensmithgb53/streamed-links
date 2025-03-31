@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const fetch = require('node-fetch'); // Ensure this is present
+const fetch = require('node-fetch'); // Critical line
 const fs = require('fs');
 puppeteer.use(StealthPlugin());
 
