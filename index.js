@@ -1,5 +1,5 @@
-const fetch = require('node-fetch');
-const { HttpsProxyAgent } = require('https-proxy-agent'); // Explicit destructuring
+ const fetch = require('node-fetch');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 const fs = require('fs');
 
 async function getFreeProxy() {
@@ -30,7 +30,7 @@ async function fetchMatches(proxy) {
         }
     };
     if (proxy) {
-        options.agent = new HttpsProxyAgent(`http://${proxy}`); // Fixed usage
+        options.agent = new HttpsProxyAgent(`http://${proxy}`);
     }
 
     const response = await fetch(url, options);
@@ -55,7 +55,7 @@ async function getM3u8FromEmbed(source, id, streamNo, proxy) {
         }
     };
     if (proxy) {
-        options.agent = new HttpsProxyAgent(`http://${proxy}`); // Fixed usage
+        options.agent = new HttpsProxyAgent(`http://${proxy}`);
     }
 
     const response = await fetch(url, options);
@@ -63,6 +63,7 @@ async function getM3u8FromEmbed(source, id, streamNo, proxy) {
     const html = await response.text();
     if (html.includes('challenges.cloudflare.com')) throw new Error("Cloudflare block encountered");
 
+    console.log("HTML snippet:", html.slice(0, 500)); // Debug output
     const m3u8Match = html.match(/https?:\/\/[^\s'"]+\.m3u8/);
     const m3u8Url = m3u8Match ? m3u8Match[0] : null;
     console.log("Found m3u8:", m3u8Url || "none");
@@ -86,7 +87,7 @@ async function scrapeMatches() {
             proxy = attempt + 1 < maxAttempts ? await getFreeProxy() : null;
             if (!proxy && attempt + 1 === maxAttempts) {
                 console.log("No proxies left, trying without proxy...");
-                matches = await fetchMatches(null); // Fallback to no proxy
+                matches = await fetchMatches(null);
                 break;
             }
         }
@@ -107,7 +108,7 @@ async function scrapeMatches() {
     for (const match of filteredMatches) {
         let gameStreams = [];
         const matchSources = match.sources.map(s => s.source);
-        proxy = await getFreeProxy(); // New proxy per match
+        proxy = await getFreeProxy();
 
         for (const src of matchSources) {
             for (let num = 1; num <= 3; num++) {
@@ -126,7 +127,7 @@ async function scrapeMatches() {
                                 }
                             });
                         }
-                        break; // Success, move to next stream
+                        break;
                     } catch (error) {
                         console.error(`Attempt ${streamAttempts + 1} failed for ${match.id}/${src}/${num} with proxy ${currentProxy || 'none'}: ${error.message}`);
                         streamAttempts++;
@@ -177,7 +178,7 @@ async function scrapeMatches() {
                 });
             }
             console.log(`Added ${match.id} with ${uniqueStreams.length} unique streams`);
-            fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2)); // Save incrementally
+            fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
         }
     }
 
