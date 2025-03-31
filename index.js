@@ -1,5 +1,6 @@
- const fetch = require('node-fetch');
+const fetch = require('node-fetch');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const { chromium } = require('playwright');
 const fs = require('fs');
 
 async function getFreeProxy() {
@@ -42,32 +43,64 @@ async function fetchMatches(proxy) {
     return matches;
 }
 
-async function getM3u8FromEmbed(source, id, streamNo, proxy) {
+async function getM3u8FromNetwork(source, id, streamNo, proxy) {
     const url = `https://embedstreams.top/embed/${source}/${id}/${streamNo}`;
-    console.log("Scraping embed URL:", url);
-    const options = {
-        headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-            "Referer": "https://streamed.su/",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Connection": "keep-alive"
-        }
-    };
+    console.log("Capturing network requests for:", url);
+
+    const browserArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--window-size=1920,1080',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-zygote',
+        '--single-process'
+    ];
     if (proxy) {
-        options.agent = new HttpsProxyAgent(`http://${proxy}`);
+        browserArgs.push(`--proxy-server=http://${proxy}`);
     }
 
-    const response = await fetch(url, options);
-    if (!response.ok) throw new Error(`Embed fetch failed: ${response.statusText}`);
-    const html = await response.text();
-    if (html.includes('challenges.cloudflare.com')) throw new Error("Cloudflare block encountered");
+    const browser = await chromium.launch({ headless: true, args: browserArgs });
+    const context = await browser.newContext({
+        viewport: { width: 1920, height: 1080 },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+        extraHTTPHeaders: {
+            "Referer": "https://streamed.su/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5"
+        }
+    });
+    const page = await context.newPage();
 
-    console.log("HTML snippet:", html.slice(0, 500)); // Debug output
-    const m3u8Match = html.match(/https?:\/\/[^\s'"]+\.m3u8/);
-    const m3u8Url = m3u8Match ? m3u8Match[0] : null;
-    console.log("Found m3u8:", m3u8Url || "none");
-    return m3u8Url;
+    let m3u8Urls = new Set();
+    page.on('response', async (response) => {
+        const responseUrl = response.url();
+        console.log("Network response:", responseUrl);
+        if (responseUrl.includes('.m3u8')) {
+            m3u8Urls.add(responseUrl);
+        } else if (responseUrl.includes('challenges.cloudflare.com')) {
+            throw new Error("Cloudflare block encountered");
+        }
+    });
+
+    try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(Math.random() * 5000 + 2000); // 2-7s delay to let streams load
+        await page.evaluate(() => window.scrollBy(0, 500)); // Trigger potential lazy loading
+        await page.waitForLoadState('networkidle', { timeout: 30000 }); // Wait for network activity
+    } catch (error) {
+        console.error(`Navigation failed: ${error.message}`);
+        throw error;
+    }
+
+    await context.close();
+    await browser.close();
+    const m3u8Array = Array.from(m3u8Urls);
+    console.log("Captured m3u8 URLs:", m3u8Array.length > 0 ? m3u8Array : "none");
+    return m3u8Array;
 }
 
 async function scrapeMatches() {
@@ -116,16 +149,16 @@ async function scrapeMatches() {
                 let currentProxy = proxy;
                 while (streamAttempts < maxAttempts) {
                     try {
-                        const m3u8Url = await getM3u8FromEmbed(src, match.id, num, currentProxy);
-                        if (m3u8Url) {
-                            gameStreams.push({
+                        const m3u8Urls = await getM3u8FromNetwork(src, match.id, num, currentProxy);
+                        if (m3u8Urls.length > 0) {
+                            gameStreams.push(...m3u8Urls.map(url => ({
                                 source: src,
-                                m3u8: m3u8Url,
+                                m3u8: url,
                                 headers: {
                                     "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
                                     "Referer": "https://embedme.top/"
                                 }
-                            });
+                            })));
                         }
                         break;
                     } catch (error) {
@@ -134,16 +167,16 @@ async function scrapeMatches() {
                         currentProxy = streamAttempts < maxAttempts ? await getFreeProxy() : null;
                         if (!currentProxy && streamAttempts === maxAttempts) {
                             console.log(`No proxies left for ${match.id}/${src}/${num}, trying without proxy...`);
-                            const m3u8Url = await getM3u8FromEmbed(src, match.id, num, null);
-                            if (m3u8Url) {
-                                gameStreams.push({
+                            const m3u8Urls = await getM3u8FromNetwork(src, match.id, num, null);
+                            if (m3u8Urls.length > 0) {
+                                gameStreams.push(...m3u8Urls.map(url => ({
                                     source: src,
-                                    m3u8: m3u8Url,
+                                    m3u8: url,
                                     headers: {
                                         "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
                                         "Referer": "https://embedme.top/"
                                     }
-                                });
+                                })));
                             }
                             break;
                         }
