@@ -6,8 +6,8 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "node-fetch": "^3.3.2",              // Updated to latest stable version
-    "puppeteer-extra": "^3.3.6",         // Required for Puppeteer with extras
-    "puppeteer-extra-plugin-stealth": "^2.11.2" // Stealth plugin for anti-detection
+    "node-fetch": "^3.3.2",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
 }
