@@ -34,27 +34,23 @@ async function getM3u8(source, id, streamNo, page, proxy) {
     console.log("Navigating to:", url);
 
     try {
-        // Random delay to mimic human navigation
         await page.waitForTimeout(Math.floor(Math.random() * 2000) + 1000);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
-        // Check for Cloudflare challenge
         const cfChallenge = await page.$('iframe[src*="challenges.cloudflare.com"]');
         if (cfChallenge) {
             console.log("Cloudflare challenge detected, attempting to wait...");
-            await page.waitForTimeout(10000); // Wait for potential auto-solve
+            await page.waitForTimeout(10000);
             if (await page.$('iframe[src*="challenges.cloudflare.com"]')) {
                 throw new Error("Cloudflare challenge persists");
             }
         }
 
-        // Wait for video player and simulate human interaction
         await page.waitForSelector('video, [class*="player"], button', { timeout: 15000 });
         await page.evaluate(() => {
             const trigger = document.querySelector('video, [class*="player"], button');
             if (trigger) {
                 trigger.click();
-                // Simulate mouse movement
                 const event = new MouseEvent('mousemove', {
                     bubbles: true,
                     clientX: Math.random() * 500,
@@ -63,7 +59,7 @@ async function getM3u8(source, id, streamNo, page, proxy) {
                 document.dispatchEvent(event);
             }
         });
-        await page.waitForTimeout(20000); // Wait for stream
+        await page.waitForTimeout(20000);
 
         const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
         console.log("Title:", title);
@@ -90,6 +86,13 @@ async function scrapeSpecificCategories() {
         javaScriptEnabled: true,
         ignoreHTTPSErrors: true
     });
+
+    // Spoof navigator properties before any page loads
+    await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        window.chrome = { runtime: {} };
+    });
+
     const page = await context.newPage();
 
     await page.setExtraHTTPHeaders({
@@ -100,12 +103,6 @@ async function scrapeSpecificCategories() {
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
         "Sec-Fetch-Site": "same-origin"
-    });
-
-    // Spoof navigator properties
-    await page.evaluateOnNewDocument(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        window.chrome = { runtime: {} };
     });
 
     const categories = [
@@ -126,6 +123,10 @@ async function scrapeSpecificCategories() {
                 if (proxy) {
                     await context.close();
                     const newContext = await browser.newContext({ proxy: { server: `http://${proxy}` } });
+                    await newContext.addInitScript(() => {
+                        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+                        window.chrome = { runtime: {} };
+                    });
                     page.close();
                     page = await newContext.newPage();
                     await page.setExtraHTTPHeaders({ "Referer": "https://streamed.su/" });
@@ -165,6 +166,10 @@ async function scrapeSpecificCategories() {
                     if (proxy) {
                         await context.close();
                         const newContext = await browser.newContext({ proxy: { server: `http://${proxy}` } });
+                        await newContext.addInitScript(() => {
+                            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+                            window.chrome = { runtime: {} };
+                        });
                         page.close();
                         page = await newContext.newPage();
                         await page.setExtraHTTPHeaders({ "Referer": "https://streamed.su/" });
@@ -185,7 +190,7 @@ async function scrapeSpecificCategories() {
                         });
                         console.log(`Added ${game.id} (${source}) with ${m3u8Urls.length} streams`);
                     }
-                    await page.waitForTimeout(5000); // Delay between requests
+                    await page.waitForTimeout(5000);
                     break;
                 } catch (error) {
                     console.error(`Attempt ${attempts + 1} failed for ${game.id}/${source}: ${error.message}`);
