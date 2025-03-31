@@ -14,9 +14,9 @@ jobs:
         with:
           node-version: '20'
       - name: Install dependencies
-        run: npm install node-fetch https-proxy-agent playwright
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npm install
+      - name: Install Puppeteer browsers
+        run: npx puppeteer browsers install chrome
       - name: Run script
         run: node index.js
       - name: Upload streams.json
