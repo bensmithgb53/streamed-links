@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const HttpsProxyAgent = require('https-proxy-agent'); // Correct import
+const { HttpsProxyAgent } = require('https-proxy-agent'); // Explicit destructuring
 const fs = require('fs');
 
 async function getFreeProxy() {
@@ -30,7 +30,7 @@ async function fetchMatches(proxy) {
         }
     };
     if (proxy) {
-        options.agent = new HttpsProxyAgent(`http://${proxy}`); // Fixed constructor
+        options.agent = new HttpsProxyAgent(`http://${proxy}`); // Fixed usage
     }
 
     const response = await fetch(url, options);
@@ -55,7 +55,7 @@ async function getM3u8FromEmbed(source, id, streamNo, proxy) {
         }
     };
     if (proxy) {
-        options.agent = new HttpsProxyAgent(`http://${proxy}`); // Fixed constructor
+        options.agent = new HttpsProxyAgent(`http://${proxy}`); // Fixed usage
     }
 
     const response = await fetch(url, options);
@@ -84,9 +84,10 @@ async function scrapeMatches() {
         } catch (error) {
             console.error(`API attempt ${attempt + 1} failed with proxy ${proxy || 'none'}: ${error.message}`);
             proxy = attempt + 1 < maxAttempts ? await getFreeProxy() : null;
-            if (!proxy) {
-                console.log("No more proxies available for API. Terminating.");
-                return;
+            if (!proxy && attempt + 1 === maxAttempts) {
+                console.log("No proxies left, trying without proxy...");
+                matches = await fetchMatches(null); // Fallback to no proxy
+                break;
             }
         }
     }
@@ -130,7 +131,21 @@ async function scrapeMatches() {
                         console.error(`Attempt ${streamAttempts + 1} failed for ${match.id}/${src}/${num} with proxy ${currentProxy || 'none'}: ${error.message}`);
                         streamAttempts++;
                         currentProxy = streamAttempts < maxAttempts ? await getFreeProxy() : null;
-                        if (!currentProxy) break;
+                        if (!currentProxy && streamAttempts === maxAttempts) {
+                            console.log(`No proxies left for ${match.id}/${src}/${num}, trying without proxy...`);
+                            const m3u8Url = await getM3u8FromEmbed(src, match.id, num, null);
+                            if (m3u8Url) {
+                                gameStreams.push({
+                                    source: src,
+                                    m3u8: m3u8Url,
+                                    headers: {
+                                        "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
+                                        "Referer": "https://embedme.top/"
+                                    }
+                                });
+                            }
+                            break;
+                        }
                     }
                 }
             }
