@@ -1,6 +1,5 @@
 const { chromium } = require('playwright');
 const fetch = require('node-fetch');
-const { HttpsProxyAgent } = require('https-proxy-agent');
 const fs = require('fs');
 
 async function getFreeProxy() {
@@ -26,40 +25,45 @@ async function getM3u8(source, id, streamNo, page, proxy) {
             m3u8Urls.add(url);
             console.log("Found m3u8:", url);
         } else if (url.includes('challenges.cloudflare.com')) {
-            throw new Error("Cloudflare block detected");
+            console.log("Cloudflare Turnstile detected");
         }
     });
+
+    page.on('console', msg => console.log("Console:", msg.text())); // Debug JS errors
 
     const url = `https://streamed.su/watch/${id}/${source}/${streamNo}`;
     console.log("Navigating to:", url);
 
     try {
-        await page.waitForTimeout(Math.floor(Math.random() * 2000) + 1000);
+        await page.waitForTimeout(Math.floor(Math.random() * 3000) + 2000); // 2-5s delay
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
         const cfChallenge = await page.$('iframe[src*="challenges.cloudflare.com"]');
         if (cfChallenge) {
-            console.log("Cloudflare challenge detected, attempting to wait...");
-            await page.waitForTimeout(10000);
+            console.log("Cloudflare challenge detected, waiting 15s...");
+            await page.waitForTimeout(15000); // Give Turnstile time to resolve
             if (await page.$('iframe[src*="challenges.cloudflare.com"]')) {
-                throw new Error("Cloudflare challenge persists");
+                throw new Error("Cloudflare challenge persists after wait");
             }
         }
 
-        await page.waitForSelector('video, [class*="player"], button', { timeout: 15000 });
+        // Wait for player and interact
+        await page.waitForSelector('video, [id*="player"], [class*="player"], button', { timeout: 20000 });
         await page.evaluate(() => {
-            const trigger = document.querySelector('video, [class*="player"], button');
+            const trigger = document.querySelector('video, [id*="player"], [class*="player"], button');
             if (trigger) {
                 trigger.click();
-                const event = new MouseEvent('mousemove', {
+                const move = new MouseEvent('mousemove', {
                     bubbles: true,
-                    clientX: Math.random() * 500,
-                    clientY: Math.random() * 500
+                    clientX: Math.random() * 800,
+                    clientY: Math.random() * 600
                 });
-                document.dispatchEvent(event);
+                document.dispatchEvent(move);
+                // Simulate scroll
+                window.scrollTo(0, Math.random() * 200);
             }
         });
-        await page.waitForTimeout(20000);
+        await page.waitForTimeout(30000); // 30s for stream to load
 
         const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
         console.log("Title:", title);
@@ -74,10 +78,11 @@ async function scrapeSpecificCategories() {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-blink-features=AutomationControlled',
-        '--window-size=1920,1080',
+        '--disable-web-security', // Bypass some checks
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+        '--window-size=1920,1080',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
     ];
 
     const browser = await chromium.launch({ headless: true, args: browserArgs });
@@ -87,10 +92,16 @@ async function scrapeSpecificCategories() {
         ignoreHTTPSErrors: true
     });
 
-    // Spoof navigator properties before any page loads
     await context.addInitScript(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
         window.chrome = { runtime: {} };
+        // Spoof WebGL
+        const getParameter = WebGLRenderingContext.prototype.getParameter;
+        WebGLRenderingContext.prototype.getParameter = function(parameter) {
+            if (parameter === 37445) return 'Intel';
+            if (parameter === 37446) return 'Mesa Intel(R) UHD Graphics';
+            return getParameter.apply(this, arguments);
+        };
     });
 
     const page = await context.newPage();
@@ -102,7 +113,9 @@ async function scrapeSpecificCategories() {
         "Referer": "https://streamed.su/",
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "same-origin"
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
     });
 
     const categories = [
@@ -126,6 +139,12 @@ async function scrapeSpecificCategories() {
                     await newContext.addInitScript(() => {
                         Object.defineProperty(navigator, 'webdriver', { get: () => false });
                         window.chrome = { runtime: {} };
+                        const getParameter = WebGLRenderingContext.prototype.getParameter;
+                        WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                            if (parameter === 37445) return 'Intel';
+                            if (parameter === 37446) return 'Mesa Intel(R) UHD Graphics';
+                            return getParameter.apply(this, arguments);
+                        };
                     });
                     page.close();
                     page = await newContext.newPage();
@@ -169,6 +188,12 @@ async function scrapeSpecificCategories() {
                         await newContext.addInitScript(() => {
                             Object.defineProperty(navigator, 'webdriver', { get: () => false });
                             window.chrome = { runtime: {} };
+                            const getParameter = WebGLRenderingContext.prototype.getParameter;
+                            WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                                if (parameter === 37445) return 'Intel';
+                                if (parameter === 37446) return 'Mesa Intel(R) UHD Graphics';
+                                return getParameter.apply(this, arguments);
+                            };
                         });
                         page.close();
                         page = await newContext.newPage();
@@ -183,14 +208,14 @@ async function scrapeSpecificCategories() {
                             m3u8: m3u8Urls.map(url => ({
                                 m3u8: url,
                                 headers: {
-                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
                                     "Referer": "https://streamed.su/"
                                 }
                             }))
                         });
                         console.log(`Added ${game.id} (${source}) with ${m3u8Urls.length} streams`);
                     }
-                    await page.waitForTimeout(5000);
+                    await page.waitForTimeout(7000); // 7s between requests
                     break;
                 } catch (error) {
                     console.error(`Attempt ${attempts + 1} failed for ${game.id}/${source}: ${error.message}`);
