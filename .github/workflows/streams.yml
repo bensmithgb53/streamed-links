@@ -13,14 +13,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Clear npm cache
+        run: npm cache clean --force
       - name: Install dependencies
         run: npm install
+      - name: Verify node-fetch installation
+        run: ls -la node_modules/node-fetch || echo "node-fetch not found"
       - name: Install Puppeteer browsers
         run: npx puppeteer browsers install chrome
-      - name: Run script
-        run: node index.js
-      - name: Upload streams.json
-        uses: actions/upload-artifact@v4
-        with:
-          name: streams-json
-          path: streams.json
