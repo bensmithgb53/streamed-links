@@ -6,7 +6,7 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "playwright": "^1.47.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "https-proxy-agent": "^7.0.5"
   }
 }
