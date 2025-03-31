@@ -48,15 +48,17 @@ async function getM3u8(source, id, streamNo, page, proxy) {
         browserArgs.push(`--proxy-server=http://${proxy}`);
     }
 
+    let title;
     try {
         await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
-        // Attempt to click a play button or video element
+        // Click a video element to start the stream
         await page.evaluate(() => {
-            const playButton = document.querySelector('button, video, [class*="play"], [id*="play"]');
-            if (playButton) playButton.click();
+            const video = document.querySelector('video');
+            if (video) video.click();
         });
-        await page.waitForTimeout(15000); // 15s to let stream load
-        const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
+        await page.evaluate(() => window.scrollBy(0, 500)); // Fallback scroll
+        await page.waitForTimeout(20000); // 20s to catch stream
+        title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
         console.log("Title extracted:", title);
     } catch (error) {
         throw new Error(`Navigation failed for ${id}/${source}/${streamNo}: ${error.message}`);
@@ -97,7 +99,7 @@ async function scrapeSpecificCategories() {
 
     for (const categoryUrl of categories) {
         console.log(`Scraping ${categoryUrl}...`);
-        let proxy = null; // Start without proxy
+        let proxy = null;
         let attempts = 0;
         const maxAttempts = 2;
 
@@ -131,7 +133,7 @@ async function scrapeSpecificCategories() {
 
     const sources = ['alpha', 'bravo', 'charlie'];
     let streams = [];
-    let proxy = null; // Start without proxy
+    let proxy = null;
 
     for (const game of allGames) {
         for (const source of sources) {
