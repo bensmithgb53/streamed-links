@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const HttpsProxyAgent = require('https-proxy-agent'); // Correct import
 const fs = require('fs');
 
 async function getFreeProxy() {
@@ -29,7 +30,7 @@ async function fetchMatches(proxy) {
         }
     };
     if (proxy) {
-        options.agent = new (require('https-proxy-agent'))(`http://${proxy}`);
+        options.agent = new HttpsProxyAgent(`http://${proxy}`); // Fixed constructor
     }
 
     const response = await fetch(url, options);
@@ -54,7 +55,7 @@ async function getM3u8FromEmbed(source, id, streamNo, proxy) {
         }
     };
     if (proxy) {
-        options.agent = new (require('https-proxy-agent'))(`http://${proxy}`);
+        options.agent = new HttpsProxyAgent(`http://${proxy}`); // Fixed constructor
     }
 
     const response = await fetch(url, options);
@@ -82,8 +83,7 @@ async function scrapeMatches() {
             break;
         } catch (error) {
             console.error(`API attempt ${attempt + 1} failed with proxy ${proxy || 'none'}: ${error.message}`);
-            attempt++;
-            proxy = attempt < maxAttempts ? await getFreeProxy() : null;
+            proxy = attempt + 1 < maxAttempts ? await getFreeProxy() : null;
             if (!proxy) {
                 console.log("No more proxies available for API. Terminating.");
                 return;
@@ -111,9 +111,10 @@ async function scrapeMatches() {
         for (const src of matchSources) {
             for (let num = 1; num <= 3; num++) {
                 let streamAttempts = 0;
+                let currentProxy = proxy;
                 while (streamAttempts < maxAttempts) {
                     try {
-                        const m3u8Url = await getM3u8FromEmbed(src, match.id, num, proxy);
+                        const m3u8Url = await getM3u8FromEmbed(src, match.id, num, currentProxy);
                         if (m3u8Url) {
                             gameStreams.push({
                                 source: src,
@@ -126,10 +127,10 @@ async function scrapeMatches() {
                         }
                         break; // Success, move to next stream
                     } catch (error) {
-                        console.error(`Attempt ${streamAttempts + 1} failed for ${match.id}/${src}/${num} with proxy ${proxy || 'none'}: ${error.message}`);
+                        console.error(`Attempt ${streamAttempts + 1} failed for ${match.id}/${src}/${num} with proxy ${currentProxy || 'none'}: ${error.message}`);
                         streamAttempts++;
-                        proxy = streamAttempts < maxAttempts ? await getFreeProxy() : null;
-                        if (!proxy) break;
+                        currentProxy = streamAttempts < maxAttempts ? await getFreeProxy() : null;
+                        if (!currentProxy) break;
                     }
                 }
             }
