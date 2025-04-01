@@ -1,23 +1,34 @@
-name: Scrape Streamed Links
+name: Scrape m3u8 URLs
 
 on:
   push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: '20'
-      - name: Clear npm cache
-        run: npm cache clean --force
+          node-version: '16'
+
       - name: Install dependencies
         run: npm install
-      - name: Verify node-fetch installation
-        run: ls -la node_modules/node-fetch || echo "node-fetch not found"
-      - name: Install Puppeteer browsers
-        run: npx puppeteer browsers install chrome
+
+      - name: Run scraper
+        run: node index.js alpha sky-sports-darts 1
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add package-lock.json streams.json
+          git commit -m "Update package-lock.json and streams.json with new m3u8 URLs" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
