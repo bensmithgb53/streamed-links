@@ -1,27 +1,15 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const fetch = require('node-fetch'); // Explicitly require node-fetch
 const fs = require('fs');
 puppeteer.use(StealthPlugin());
 
 async function getM3u8(source, id, streamNo, page) {
-    const m3u8Set = new Set();
-    const m3u8Urls = [];
-
+    let m3u8Urls = [];
     page.on("response", async (response) => {
         const url = response.url();
         if (url.includes('.m3u8')) {
-            const urlParams = new URLSearchParams(url.split('?')[1] || '');
-            const md5 = urlParams.get('md5') || '';
-            const expiry = urlParams.get('expiry') || '';
-            const key = `${md5}:${expiry}`;
-            if (!m3u8Set.has(key)) {
-                m3u8Set.add(key);
-                m3u8Urls.push(url);
-                console.log("Found unique m3u8:", url);
-            } else {
-                console.log("Skipping duplicate m3u8 (same md5/expiry):", url);
-            }
+            m3u8Urls.push(url);
+            console.log("Found m3u8:", url);
         }
     });
 
@@ -29,23 +17,17 @@ async function getM3u8(source, id, streamNo, page) {
     console.log("Navigating to:", url);
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 0 });
 
-    if (m3u8Urls.length === 0) {
-        const fallbackUrl = `https://embedstreams.top/embed/${source}/${id}/${streamNo}`;
-        console.log("No m3u8 found, trying fallback:", fallbackUrl);
-        await page.goto(fallbackUrl, { waitUntil: 'networkidle0', timeout: 0 });
-    }
-
     const title = await page.evaluate(() => document.title || window.location.pathname.split('/')[2]);
     console.log("Title extracted:", title);
 
     console.log("Waiting for network responses...");
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Reduced to 10s
 
     console.log("Final m3u8Urls:", m3u8Urls.length > 0 ? m3u8Urls : "Not found");
     return { title, m3u8Urls: m3u8Urls.length > 0 ? m3u8Urls : [] };
 }
 
-async function scrapeFromApi() {
+async function scrapeSpecificCategories() {
     const browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -68,32 +50,38 @@ async function scrapeFromApi() {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
     });
 
-    console.log("Fetching API data from https://streamed.su/api/matches/all...");
-    let apiData;
-    try {
-        const response = await fetch('https://streamed.su/api/matches/all', {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-                "Referer": "https://streamed.su/"
-            }
+    const categories = [
+        'https://streamed.su/category/football',
+        'https://streamed.su/category/fight',
+        'https://streamed.su/category/darts'
+    ];
+    let allGames = [];
+
+    for (const categoryUrl of categories) {
+        console.log(`Scraping ${categoryUrl}...`);
+        await page.goto(categoryUrl, { waitUntil: 'networkidle0', timeout: 0 });
+
+        const games = await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a[href*="/watch/"]'));
+            return links.map(link => {
+                const href = link.getAttribute('href');
+                const id = href.split('/watch/')[1]?.split('/')[0];
+                const title = link.textContent.trim() || href.split('/')[2];
+                return { id, title };
+            }).filter(game => game.id);
         });
-        if (!response.ok) {
-            throw new Error(`API request failed with status: ${response.status}`);
-        }
-        apiData = await response.json();
-        console.log(`Retrieved ${apiData.length} games from API`);
-    } catch (error) {
-        console.error("Failed to fetch API data:", error.message);
-        await browser.close();
-        return;
+        allGames = allGames.concat(games);
+        console.log(`Found ${games.length} games in ${categoryUrl}`);
     }
+    console.log("Total games:", allGames.length);
 
-    let streams = [];
+    const sources = ['alpha', 'bravo', 'charlie'];
+    const maxStreamNo = 1; // Reduced to 1 for speed
+    let streams = []; // Start fresh, no loading old data
 
-    for (const game of apiData) {
-        for (const sourceObj of game.sources) {
-            const source = sourceObj.source;
-            const { title, m3u8Urls } = await getM3u8(source, game.id, 1, page);
+    for (const game of allGames) {
+        for (const source of sources) {
+            const { title, m3u8Urls } = await getM3u8(source, game.id, 1, page); // Only streamNo 1
             if (m3u8Urls.length > 0) {
                 streams.push({
                     id: game.id,
@@ -112,12 +100,11 @@ async function scrapeFromApi() {
         }
     }
 
+    // Overwrite streams.json with fresh data
     fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
     console.log("Overwrote streams.json with new data");
 
     await browser.close();
 }
 
-scrapeFromApi().then(() => console.log("Scraping completed")).catch(err => {
-    console.error("Error:", err);
-});
+scrapeSpecificCategories().then(() => console.log("Scraping completed"));
