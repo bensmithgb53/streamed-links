@@ -4,11 +4,11 @@ const fs = require('fs');
 puppeteer.use(StealthPlugin());
 
 async function getM3u8(source, id, streamNo, page) {
-    let m3u8Urls = [];
+    let m3u8Urls = new Set(); // Use Set to avoid duplicates
     page.on("response", async (response) => {
         const url = response.url();
         if (url.includes('.m3u8')) {
-            m3u8Urls.push(url);
+            m3u8Urls.add(url); // Add to Set (duplicates ignored)
             console.log("Found m3u8:", url);
         }
     });
@@ -21,10 +21,11 @@ async function getM3u8(source, id, streamNo, page) {
     console.log("Title extracted:", title);
 
     console.log("Waiting for network responses...");
-    await new Promise(resolve => setTimeout(resolve, 10000)); // Reduced to 10s
+    await new Promise(resolve => setTimeout(resolve, 10000)); // 10s wait
 
-    console.log("Final m3u8Urls:", m3u8Urls.length > 0 ? m3u8Urls : "Not found");
-    return { title, m3u8Urls: m3u8Urls.length > 0 ? m3u8Urls : [] };
+    const uniqueM3u8Array = Array.from(m3u8Urls); // Convert Set back to array
+    console.log("Final m3u8Urls:", uniqueM3u8Array.length > 0 ? uniqueM3u8Array : "Not found");
+    return { title, m3u8Urls: uniqueM3u8Array.length > 0 ? uniqueM3u8Array : [] };
 }
 
 async function scrapeSpecificCategories() {
@@ -44,16 +45,11 @@ async function scrapeSpecificCategories() {
         window.navigator.chrome = { runtime: {} };
     });
 
-    await page.setExtraHTTPHeaders({
-        "Referer": "https://embedme.top/",
-        "Origin": "https://embedme.top",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
-    });
-
     const categories = [
         'https://streamed.su/category/football',
         'https://streamed.su/category/fight',
-        'https://streamed.su/category/darts'
+        'https://streamed.su/category/darts',
+        'https://streamed.su/category/other' // Added new category
     ];
     let allGames = [];
 
@@ -75,32 +71,25 @@ async function scrapeSpecificCategories() {
     }
     console.log("Total games:", allGames.length);
 
-    const sources = ['alpha', 'bravo', 'charlie'];
-    const maxStreamNo = 1; // Reduced to 1 for speed
-    let streams = []; // Start fresh, no loading old data
+    const sources = ['admin', 'alpha', 'charlie', 'delta', 'echo', 'foxtrot']; // Updated sources
+    const maxStreamNo = 1; // Still 1 for speed, adjust if needed
+    let streams = [];
 
     for (const game of allGames) {
         for (const source of sources) {
-            const { title, m3u8Urls } = await getM3u8(source, game.id, 1, page); // Only streamNo 1
+            const { title, m3u8Urls } = await getM3u8(source, game.id, 1, page);
             if (m3u8Urls.length > 0) {
                 streams.push({
                     id: game.id,
                     title: game.title,
                     source: source,
-                    m3u8: m3u8Urls.map(url => ({
-                        m3u8: url,
-                        headers: {
-                            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
-                            "Referer": "https://embedme.top/"
-                        }
-                    }))
+                    m3u8: m3u8Urls // Simplified, no headers
                 });
                 console.log(`Added ${game.id} (${source}) with ${m3u8Urls.length} streams`);
             }
         }
     }
 
-    // Overwrite streams.json with fresh data
     fs.writeFileSync('streams.json', JSON.stringify(streams, null, 2));
     console.log("Overwrote streams.json with new data");
 
